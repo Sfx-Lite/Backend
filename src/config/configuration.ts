@@ -24,6 +24,13 @@ export default () => ({
     logging: process.env.DATABASE_LOGGING === 'true',
   },
 
+  cache: {
+    // Optional. If unset (or unreachable) the app uses an in-memory cache.
+    redisUrl: process.env.REDIS_URL,
+    ttlSeconds: parseInt(process.env.CACHE_TTL_SECONDS ?? '60', 10),
+    maxItems: parseInt(process.env.CACHE_MAX_ITEMS ?? '1000', 10),
+  },
+
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET,
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',

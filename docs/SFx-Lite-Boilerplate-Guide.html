@@ -110,8 +110,10 @@
       <li><a href="#lifecycle">The request lifecycle</a></li>
       <li><a href="#pattern">The module / controller / service / DTO pattern</a></li>
       <li><a href="#swagger">API documentation (Swagger)</a></li>
+      <li><a href="#caching">Caching (cross-module, graceful)</a></li>
       <li><a href="#addmodule">How to add a new module (step by step)</a></li>
       <li><a href="#database">Database &amp; migrations</a></li>
+      <li><a href="#datamodel">Data model — entities &amp; core schema</a></li>
       <li><a href="#conventions">Conventions, scripts &amp; cheat sheet</a></li>
       <li><a href="#roadmap">Squad roadmap</a></li>
     </ol>
@@ -209,6 +211,7 @@ const ttl = this.config.get&lt;number&gt;('throttle.ttlSeconds');</code></pre>
 │   └── swagger.config.ts    <span class="c"># setupSwagger() — builds the OpenAPI doc, mounts /docs</span>
 │
 ├── common/                  <span class="c"># cross-cutting building blocks (no business logic)</span>
+│   ├── cache/               <span class="c"># CacheService + @Cacheable + ResponseCacheInterceptor</span>
 │   ├── constants/           <span class="c"># shared constant names (throttler profiles…)</span>
 │   ├── decorators/          <span class="c"># @Public(), @CurrentUser()</span>
 │   ├── filters/             <span class="c"># AllExceptionsFilter — one error shape for the whole API</span>
@@ -226,13 +229,18 @@ const ttl = this.config.get&lt;number&gt;('throttle.ttlSeconds');</code></pre>
     │   ├── health.module.ts
     │   ├── health.controller.ts
     │   └── health.service.ts
-    └── auth/                <span class="c"># STRUCTURE-ONLY skeleton (Squad A) — comments, no logic</span>
-        ├── auth.module.ts
-        ├── auth.controller.ts
-        ├── auth.service.ts
-        └── dto/
-            ├── login.dto.ts
-            └── register.dto.ts</div>
+    ├── auth/                <span class="c"># STRUCTURE-ONLY skeleton (Squad A) — comments, no logic</span>
+    │   ├── auth.module.ts
+    │   ├── auth.controller.ts
+    │   ├── auth.service.ts
+    │   └── dto/
+    │       ├── login.dto.ts
+    │       └── register.dto.ts
+    │
+    └── <span class="c"># domain folders holding the core entities (see §12):</span>
+        users/ · kyc/ · wallets/ · ledger/ · transactions/ ·
+        beneficiaries/ · notifications/ · fx/ · analytics/ ·
+        chat/ · admin/   <span class="c"># each has entities/&lt;name&gt;.entity.ts</span></div>
 
   <p><b>The mental model:</b> everything under <code>common/</code>, <code>config/</code> and <code>database/</code> is the shared chassis you rarely edit. Everything you build goes under <code>modules/</code>, one self-contained folder per feature. <code>health</code> is a complete, working example; <code>auth</code> shows the same skeleton with the logic left as comments for Squad A.</p>
 
@@ -385,7 +393,58 @@ export class LoginDto {
     Decorators live next to the code they describe, so the docs update the instant a route changes. A hand-maintained schema drifts out of sync the moment someone forgets to edit it. If the frontend needs a static spec for client codegen, generate it — add <code>writeFileSync('./openapi.json', JSON.stringify(setupSwagger(app), null, 2))</code> — never write it by hand.
   </div>
 
-  <h2 id="addmodule">9 · How to add a new module (step by step)</h2>
+  <h2 id="caching">9 · Caching (cross-module, graceful)</h2>
+  <p>A single <code>CacheService</code> is available to every module, backed by Redis when it's there and an in-memory store when it isn't. It lives in <code>src/common/cache/</code> and is registered as a <code>@Global()</code> module, so you inject it anywhere without importing anything.</p>
+
+  <div class="callout ok">
+    <b>Cache never blocks development or deployment.</b>
+    If <code>REDIS_URL</code> is unset, or Redis is unreachable, or the <code>ioredis</code> package isn't even installed, the app falls back to a bounded in-memory cache and keeps running — locally, in staging, and in production. Every cache call is wrapped so a cache failure degrades to a miss, never an error. No Docker required.
+  </div>
+
+  <h4>Two ways to use it</h4>
+  <p><b>1 — Cache a GET response declaratively</b> with <code>@Cacheable()</code>. Only routes that opt in are cached (so writes never are), and keys are per-user by default so data can't leak between users:</p>
+  <pre><code>import { Cacheable } from '../../common/cache/cache.decorators';
+
+@Get('rates')
+@Cacheable(30)                 // cache this response for 30 seconds
+getRates() {
+  return this.fxService.latest();
+}</code></pre>
+
+  <p><b>2 — Cache anything inside a service</b> with <code>wrap()</code> (read-through) or the raw <code>get</code>/<code>set</code>/<code>del</code>:</p>
+  <pre><code>constructor(private readonly cache: CacheService) {}
+
+async latest() {
+  // returns cached value, or runs the fn, caches it, and returns it
+  return this.cache.wrap('fx:usd-ngn', () =&gt; this.fetchFromProvider(), 30);
+}
+
+// or manually:
+await this.cache.set('user:42:profile', profile, 120);
+const p = await this.cache.get&lt;Profile&gt;('user:42:profile');
+await this.cache.del('user:42:profile');   // invalidate after an update</code></pre>
+
+  <h4>Turning on the shared (Redis) cache</h4>
+  <p>Optional, and only useful once you run more than one instance (so they share a cache). Two steps:</p>
+  <pre><code>npm i ioredis
+# then in .env:
+REDIS_URL=redis://localhost:6379     # or your managed Redis / rediss:// URL</code></pre>
+  <p>On boot the log tells you which backend is live — <code>Redis cache connected.</code> or <code>using in-memory cache.</code> Config lives under the <code>cache</code> namespace (<code>CACHE_TTL_SECONDS</code>, <code>CACHE_MAX_ITEMS</code>) in <code>configuration.ts</code>.</p>
+
+  <table>
+    <tr><th>File</th><th>Role</th></tr>
+    <tr><td><code>common/cache/cache.service.ts</code></td><td>The cache API: <code>get/set/del/wrap</code>, Redis-or-memory, never throws.</td></tr>
+    <tr><td><code>common/cache/cache.module.ts</code></td><td><code>@Global()</code> module exposing <code>CacheService</code> everywhere.</td></tr>
+    <tr><td><code>common/cache/cache.decorators.ts</code></td><td><code>@Cacheable(ttl?)</code> and <code>@CacheKey()</code>.</td></tr>
+    <tr><td><code>common/cache/response-cache.interceptor.ts</code></td><td>Caches <code>@Cacheable</code> GET routes; registered globally in <code>app.module.ts</code>.</td></tr>
+  </table>
+
+  <div class="callout warn">
+    <b>Invalidate on write.</b>
+    The response cache only auto-expires by TTL. After a mutation that changes cached data, call <code>cache.del(key)</code> (or use short TTLs) so users don't see stale results. Never cache authenticated, user-specific data under a shared key.
+  </div>
+
+  <h2 id="addmodule">10 · How to add a new module (step by step)</h2>
   <p>Say you're adding a <code>wallets</code> feature. Do this:</p>
 
   <h4>1. Scaffold (or copy the health folder)</h4>
@@ -432,7 +491,7 @@ imports: [TypeOrmModule.forFeature([Wallet])]</code></pre>
   <pre><code>npm run migration:generate -- src/database/migrations/AddWallets
 npm run migration:run</code></pre>
 
-  <h2 id="database">10 · Database &amp; migrations</h2>
+  <h2 id="database">11 · Database &amp; migrations</h2>
   <p>There are two TypeORM setups on purpose:</p>
   <table>
     <tr><th>File</th><th>Used by</th><th>Notes</th></tr>
@@ -448,7 +507,40 @@ npm run migration:revert                                       # roll back the l
     <code>synchronize</code> is permanently <code>false</code>. Generate a migration, review it, commit it. This is a fintech-grade rule — never let the app silently mutate production tables.
   </div>
 
-  <h2 id="conventions">11 · Conventions, scripts &amp; cheat sheet</h2>
+  <h2 id="datamodel">12 · Data model — entities &amp; core schema</h2>
+  <p>The starting schema is expressed as TypeORM entities (one <code>&lt;name&gt;.entity.ts</code> per table) under each domain folder in <code>src/modules/</code>. These are the source of truth; run <code>npm run migration:generate</code> to turn them into the SQL that actually creates the tables. The backend team refines these in Week 1.</p>
+
+  <div class="callout tip">
+    <b>Entities define the schema; migrations apply it.</b>
+    Because <code>synchronize</code> is off, creating an entity file does not touch the database. The migration CLI (<code>data-source.ts</code>, glob <code>src/**/*.entity.ts</code>) reads every entity and generates a migration. Review it, commit it, and everyone runs <code>npm run migration:run</code> once against the shared database.
+  </div>
+
+  <table>
+    <tr><th>Table</th><th>Purpose</th><th>Key columns / notes</th></tr>
+    <tr><td><code>users</code></td><td>Account + profile + KYC status</td><td>unique <code>username</code>/<code>email</code>/<code>google_id</code>; <code>password_hash</code> null for Google-only; <code>role</code>, <code>kyc_status</code> enums; <code>pin_hash</code>.</td></tr>
+    <tr><td><code>kyc_submissions</code></td><td>Uploaded doc + selfie per review</td><td><code>doc_type</code>, <code>status</code> enums; <code>reviewed_by</code> → admin.</td></tr>
+    <tr><td><code>wallets</code></td><td>One deposit address per user</td><td>unique <code>deposit_address</code>; <code>derivation_index</code>; <code>swept_balance_usdc</code> numeric(18,6).</td></tr>
+    <tr><td><code>ledger_entries</code></td><td>Append-only double-entry ledger</td><td><code>direction</code> debit/credit; <code>amount_usdc</code>, <code>balance_after</code> numeric(18,6); columns are <code>update:false</code>.</td></tr>
+    <tr><td><code>transactions</code></td><td>User-facing money movements</td><td><code>type</code>/<code>status</code> enums; <code>from/to_user_id</code>, <code>external_address</code>, <code>tx_hash</code>; <code>fee_usdc</code>, <code>amount_usdc</code>.</td></tr>
+    <tr><td><code>beneficiaries</code></td><td>Saved payees</td><td><code>type</code> internal/external; <code>identifier</code> = username or address; unique per user.</td></tr>
+    <tr><td><code>notifications</code></td><td>Per-user in-app alerts</td><td><code>read_at</code> null until opened.</td></tr>
+    <tr><td><code>fx_rates</code></td><td>Exchange-rate snapshots</td><td><code>rate</code> numeric(18,8); query latest by <code>created_at</code>.</td></tr>
+    <tr><td><code>analytics_events</code></td><td>Product analytics</td><td>nullable <code>user_id</code>; <code>properties</code> jsonb.</td></tr>
+    <tr><td><code>chat_conversations</code></td><td>AI support threads</td><td>one per user thread.</td></tr>
+    <tr><td><code>chat_messages</code></td><td>Turns within a thread</td><td><code>role</code> user/assistant/system; <code>content</code> text.</td></tr>
+    <tr><td><code>doc_chunks</code></td><td>RAG knowledge base</td><td><code>embedding</code> → pgvector (see note below); <code>metadata</code> jsonb.</td></tr>
+    <tr><td><code>audit_log</code></td><td>Append-only admin action trail</td><td><code>admin_id</code>, <code>action</code>, <code>entity</code>/<code>entity_id</code>, <code>metadata</code> jsonb.</td></tr>
+  </table>
+
+  <div class="callout warn">
+    <b>Two things to finish by hand in the first migration.</b>
+    <b>Money</b> is always <code>numeric(18,6)</code> (never float), and the ledger is append-only.
+    <b>pgvector:</b> <code>doc_chunks.embedding</code> is declared as text so migrations generate cleanly. In the migration, enable the extension and switch the type:
+    <code>CREATE EXTENSION IF NOT EXISTS vector;</code> then
+    <code>ALTER TABLE doc_chunks ALTER COLUMN embedding TYPE vector(1536);</code> and add an ivfflat/hnsw index for similarity search.
+  </div>
+
+  <h2 id="conventions">13 · Conventions, scripts &amp; cheat sheet</h2>
   <h4>npm scripts</h4>
   <table>
     <tr><th>Command</th><th>Does</th></tr>
@@ -474,7 +566,7 @@ npm run migration:revert                                       # roll back the l
     <tr><td>Logging</td><td>Never log request bodies (KYC/credentials). Use the request id to trace issues.</td></tr>
   </table>
 
-  <h2 id="roadmap">12 · Squad roadmap</h2>
+  <h2 id="roadmap">14 · Squad roadmap</h2>
   <p>Feature modules land in <code>src/modules/</code> and get registered in <code>app.module.ts</code> as squads ship them:</p>
   <table>
     <tr><th>Squad</th><th>Modules</th></tr>
