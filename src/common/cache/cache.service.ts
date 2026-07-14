@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { env } from '../../config/env';
 import { createRedisClient } from './redis.factory';
 
 interface MemEntry {
@@ -32,23 +32,21 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
   private redisReady = false;
   private sweeper?: ReturnType<typeof setInterval>;
 
-  // Resolved from config in onModuleInit (not the constructor) so all runtime
+  // Resolved from env in onModuleInit (not the constructor) so all runtime
   // wiring happens in one lifecycle hook. Sensible defaults until then.
   private defaultTtl = 60;
   private maxItems = 1000;
 
-  constructor(private readonly config: ConfigService) {}
-
   async onModuleInit(): Promise<void> {
-    this.defaultTtl = this.config.get<number>('cache.ttlSeconds') ?? 60;
-    this.maxItems = this.config.get<number>('cache.maxItems') ?? 1000;
+    this.defaultTtl = env.cache.ttlSeconds;
+    this.maxItems = env.cache.maxItems;
 
     // Evict expired in-memory entries periodically. unref() so it never
     // holds the process open on shutdown.
     this.sweeper = setInterval(() => this.sweep(), 30_000);
     this.sweeper.unref?.();
 
-    const url = this.config.get<string>('cache.redisUrl');
+    const url = env.cache.redisUrl;
     if (!url) {
       this.logger.log('No REDIS_URL set — using in-memory cache.');
       return;
