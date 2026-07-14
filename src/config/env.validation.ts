@@ -23,4 +23,9 @@ export const envValidationSchema = Joi.object({
 
   JWT_ACCESS_SECRET: Joi.string().min(8).required(),
   JWT_REFRESH_SECRET: Joi.string().min(8).required(),
+
+  // Cache is optional — omit REDIS_URL to run on the in-memory fallback.
+  REDIS_URL: Joi.string().uri().allow('').optional(),
+  CACHE_TTL_SECONDS: Joi.number().min(1).default(60),
+  CACHE_MAX_ITEMS: Joi.number().min(1).default(1000),
 });

@@ -15,6 +15,8 @@ import { AppThrottlerGuard } from './common/guards/app-throttler.guard';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformResponseInterceptor } from './common/interceptors/transform-response.interceptor';
 import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor';
+import { CacheModule } from './common/cache/cache.module';
+import { ResponseCacheInterceptor } from './common/cache/response-cache.interceptor';
 import { THROTTLER_IP, THROTTLER_USER } from './common/constants';
 
 @Module({
@@ -47,6 +49,7 @@ import { THROTTLER_IP, THROTTLER_USER } from './common/constants';
     }),
 
     ScheduleModule.forRoot(), // deposit watcher / sweep / reconciliation jobs (Squad B)
+    CacheModule, // global cache — Redis if REDIS_URL is set & reachable, else in-memory
     DatabaseModule,
     HealthModule,
 
@@ -61,6 +64,9 @@ import { THROTTLER_IP, THROTTLER_USER } from './common/constants';
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: TransformResponseInterceptor },
     { provide: APP_INTERCEPTOR, useClass: TimeoutInterceptor },
+    // Innermost interceptor: caches @Cacheable() GET routes on the raw
+    // controller return, so the envelope is re-applied fresh on cache hits.
+    { provide: APP_INTERCEPTOR, useClass: ResponseCacheInterceptor },
   ],
 })
 export class AppModule implements NestModule {
