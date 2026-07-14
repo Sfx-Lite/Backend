@@ -1,4 +1,5 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity } from 'typeorm';
+import { BaseEntity } from '../../../common/entities/base.entity';
 
 /**
  * doc_chunks — chunked knowledge-base content for AI support retrieval (RAG).
@@ -13,10 +14,7 @@ import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeor
  * Then add an ivfflat/hnsw index for similarity search.
  */
 @Entity('doc_chunks')
-export class DocChunk {
-  @PrimaryGeneratedColumn('uuid')
-  id!: string;
-
+export class DocChunk extends BaseEntity {
   @Column({ nullable: true })
   source?: string | null;
 
@@ -32,7 +30,4 @@ export class DocChunk {
 
   @Column({ type: 'jsonb', nullable: true })
   metadata?: Record<string, unknown> | null;
-
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
-  createdAt!: Date;
 }

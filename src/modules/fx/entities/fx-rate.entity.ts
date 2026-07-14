@@ -1,4 +1,5 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
+import { BaseEntity } from '../../../common/entities/base.entity';
 
 /**
  * fx_rates — snapshots of exchange rates used for display/quotes. Stored with
@@ -7,10 +8,7 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 
  */
 @Entity('fx_rates')
 @Index(['baseCurrency', 'quoteCurrency', 'createdAt'])
-export class FxRate {
-  @PrimaryGeneratedColumn('uuid')
-  id!: string;
-
+export class FxRate extends BaseEntity {
   @Column({ name: 'base_currency', length: 10 })
   baseCurrency!: string;
 
@@ -22,7 +20,4 @@ export class FxRate {
 
   @Column({ nullable: true })
   source?: string | null;
-
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
-  createdAt!: Date;
 }

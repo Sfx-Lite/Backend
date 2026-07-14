@@ -1,15 +1,14 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
+import { BaseEntity } from '../../../common/entities/base.entity';
 
 /**
  * audit_log — append-only trail of privileged admin actions. `entity` +
  * entity_id identify what was acted on; `metadata` holds a JSON snapshot of
- * the change (before/after, reason, etc.).
+ * the change (before/after, reason, etc.). Append-only in practice;
+ * updated_at (from BaseEntity) simply mirrors created_at.
  */
 @Entity('audit_log')
-export class AuditLog {
-  @PrimaryGeneratedColumn('uuid')
-  id!: string;
-
+export class AuditLog extends BaseEntity {
   @Index()
   @Column({ name: 'admin_id', type: 'uuid' })
   adminId!: string;
@@ -26,7 +25,4 @@ export class AuditLog {
 
   @Column({ type: 'jsonb', nullable: true })
   metadata?: Record<string, unknown> | null;
-
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
-  createdAt!: Date;
 }
