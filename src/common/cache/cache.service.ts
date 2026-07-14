@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createRedisClient } from './redis.factory';
 
 interface MemEntry {
   value: unknown;
@@ -31,15 +32,17 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
   private redisReady = false;
   private sweeper?: ReturnType<typeof setInterval>;
 
-  private readonly defaultTtl: number;
-  private readonly maxItems: number;
+  // Resolved from config in onModuleInit (not the constructor) so all runtime
+  // wiring happens in one lifecycle hook. Sensible defaults until then.
+  private defaultTtl = 60;
+  private maxItems = 1000;
 
-  constructor(private readonly config: ConfigService) {
-    this.defaultTtl = this.config.get<number>('cache.ttlSeconds') ?? 60;
-    this.maxItems = this.config.get<number>('cache.maxItems') ?? 1000;
-  }
+  constructor(private readonly config: ConfigService) {}
 
   async onModuleInit(): Promise<void> {
+    this.defaultTtl = this.config.get<number>('cache.ttlSeconds') ?? 60;
+    this.maxItems = this.config.get<number>('cache.maxItems') ?? 1000;
+
     // Evict expired in-memory entries periodically. unref() so it never
     // holds the process open on shutdown.
     this.sweeper = setInterval(() => this.sweep(), 30_000);
@@ -52,18 +55,13 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
-      // Indirect specifier so TypeScript doesn't try to resolve the (optional,
-      // possibly uninstalled) package at build time. If it's absent, the
-      // dynamic import throws here at runtime and we fall back cleanly.
-      const pkg = 'ioredis';
-      const mod: any = await import(pkg);
-      const Redis = mod.default ?? mod;
-      this.redis = new Redis(url, {
-        lazyConnect: true,
-        maxRetriesPerRequest: 1,
-        enableOfflineQueue: false,
-        retryStrategy: (times: number) => (times > 3 ? null : Math.min(times * 200, 1000)),
-      });
+      // Build the client via the shared factory so connection options live in
+      // one place and can be reused. Returns null if ioredis isn't installed.
+      this.redis = await createRedisClient(url);
+      if (!this.redis) {
+        this.logger.warn('Redis unavailable — using in-memory cache.');
+        return;
+      }
       this.redis.on('ready', () => {
         this.redisReady = true;
         this.logger.log('Redis cache connected.');

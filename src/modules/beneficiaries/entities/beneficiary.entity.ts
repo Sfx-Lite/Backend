@@ -1,9 +1,6 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
-
-export enum BeneficiaryType {
-  INTERNAL = 'internal', // another SFx user (by username)
-  EXTERNAL = 'external', // an on-chain address
-}
+import { Column, Entity, Index } from 'typeorm';
+import { BaseEntity } from '../../../common/entities/base.entity';
+import { BeneficiaryType } from '../enums/beneficiary-type.enum';
 
 /**
  * beneficiaries — a user's saved payees. `identifier` holds a username for
@@ -11,10 +8,7 @@ export enum BeneficiaryType {
  */
 @Entity('beneficiaries')
 @Index(['userId', 'identifier'], { unique: true })
-export class Beneficiary {
-  @PrimaryGeneratedColumn('uuid')
-  id!: string;
-
+export class Beneficiary extends BaseEntity {
   @Index()
   @Column({ name: 'user_id', type: 'uuid' })
   userId!: string;
@@ -27,7 +21,4 @@ export class Beneficiary {
 
   @Column()
   identifier!: string;
-
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
-  createdAt!: Date;
 }

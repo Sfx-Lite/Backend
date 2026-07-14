@@ -1,16 +1,7 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
-
-export enum UserRole {
-  USER = 'user',
-  ADMIN = 'admin',
-}
-
-export enum KycStatus {
-  UNVERIFIED = 'unverified',
-  PENDING = 'pending',
-  VERIFIED = 'verified',
-  REJECTED = 'rejected',
-}
+import { Column, Entity, Index } from 'typeorm';
+import { BaseEntity } from '../../../common/entities/base.entity';
+import { UserRole } from '../enums/user-role.enum';
+import { KycStatus } from '../enums/kyc-status.enum';
 
 /**
  * users — account + profile + KYC status.
@@ -18,10 +9,7 @@ export enum KycStatus {
  * password accounts. pin_hash gates sensitive money actions.
  */
 @Entity('users')
-export class User {
-  @PrimaryGeneratedColumn('uuid')
-  id!: string;
-
+export class User extends BaseEntity {
   @Index({ unique: true })
   @Column({ length: 50 })
   username!: string;
@@ -57,7 +45,4 @@ export class User {
 
   @Column({ name: 'suspended_at', type: 'timestamptz', nullable: true })
   suspendedAt?: Date | null;
-
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
-  createdAt!: Date;
 }

@@ -1,25 +1,14 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
-
-export enum KycDocType {
-  PASSPORT = 'passport',
-  NATIONAL_ID = 'national_id',
-}
-
-export enum KycSubmissionStatus {
-  PENDING = 'pending',
-  APPROVED = 'approved',
-  REJECTED = 'rejected',
-}
+import { Column, Entity, Index } from 'typeorm';
+import { BaseEntity } from '../../../common/entities/base.entity';
+import { KycDocType } from '../enums/kyc-doc-type.enum';
+import { KycSubmissionStatus } from '../enums/kyc-submission-status.enum';
 
 /**
  * kyc_submissions — one row per document/selfie submission a user makes.
  * reviewed_by references the admin (users.id) who actioned it.
  */
 @Entity('kyc_submissions')
-export class KycSubmission {
-  @PrimaryGeneratedColumn('uuid')
-  id!: string;
-
+export class KycSubmission extends BaseEntity {
   @Index()
   @Column({ name: 'user_id', type: 'uuid' })
   userId!: string;
@@ -44,7 +33,4 @@ export class KycSubmission {
 
   @Column({ name: 'reviewed_at', type: 'timestamptz', nullable: true })
   reviewedAt?: Date | null;
-
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
-  createdAt!: Date;
 }

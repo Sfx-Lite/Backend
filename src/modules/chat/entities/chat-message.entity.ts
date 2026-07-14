@@ -1,13 +1,10 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
-
-export enum ChatRole {
-  USER = 'user',
-  ASSISTANT = 'assistant',
-  SYSTEM = 'system',
-}
+import { ChatRole } from '../enums/chat-role.enum';
 
 /**
  * chat_messages — individual turns within a conversation, in created_at order.
+ * A message is immutable once written, so it keeps its own id + created_at
+ * instead of extending BaseEntity (no updated_at).
  */
 @Entity('chat_messages')
 export class ChatMessage {
