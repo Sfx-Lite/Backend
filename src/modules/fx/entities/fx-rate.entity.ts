@@ -18,6 +18,6 @@ export class FxRate extends BaseEntity {
   @Column({ type: 'numeric', precision: 18, scale: 8 })
   rate!: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   source?: string | null;
 }

@@ -18,26 +18,26 @@ export class User extends BaseEntity {
   @Column()
   email!: string;
 
-  @Column({ name: 'password_hash', nullable: true })
+  @Column({ name: 'password_hash', type: 'varchar', nullable: true })
   passwordHash?: string | null;
 
   @Index({ unique: true })
-  @Column({ name: 'google_id', nullable: true })
+  @Column({ name: 'google_id', type: 'varchar', nullable: true })
   googleId?: string | null;
 
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
   role!: UserRole;
 
-  @Column({ name: 'pin_hash', nullable: true })
+  @Column({ name: 'pin_hash', type: 'varchar', nullable: true })
   pinHash?: string | null;
 
-  @Column({ name: 'first_name', nullable: true })
+  @Column({ name: 'first_name', type: 'varchar', nullable: true })
   firstName?: string | null;
 
-  @Column({ name: 'last_name', nullable: true })
+  @Column({ name: 'last_name', type: 'varchar', nullable: true })
   lastName?: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   country?: string | null;
 
   @Column({ name: 'kyc_status', type: 'enum', enum: KycStatus, default: KycStatus.UNVERIFIED })

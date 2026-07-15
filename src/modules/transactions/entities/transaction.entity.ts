@@ -30,11 +30,11 @@ export class Transaction extends BaseEntity {
   @Column({ name: 'to_user_id', type: 'uuid', nullable: true })
   toUserId?: string | null;
 
-  @Column({ name: 'external_address', nullable: true })
+  @Column({ name: 'external_address', type: 'varchar', nullable: true })
   externalAddress?: string | null;
 
   @Index()
-  @Column({ name: 'tx_hash', nullable: true })
+  @Column({ name: 'tx_hash', type: 'varchar', nullable: true })
   txHash?: string | null;
 
   @Column({ type: 'text', nullable: true })

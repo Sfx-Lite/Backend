@@ -11,6 +11,6 @@ export class ChatConversation extends BaseEntity {
   @Column({ name: 'user_id', type: 'uuid' })
   userId!: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   title?: string | null;
 }
