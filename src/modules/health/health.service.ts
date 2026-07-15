@@ -27,17 +27,6 @@ export class HealthService {
   ) {}
 
   /**
-   * Deep check — pings Postgres and inspects heap usage.
-   * Used by Render's health probe and external uptime pings.
-   */
-  check(): Promise<HealthCheckResult> {
-    return this.health.check([
-      () => this.db.pingCheck('postgres', { timeout: 3000 }),
-      () => this.memory.checkHeap('memory_heap', 512 * 1024 * 1024),
-    ]);
-  }
-
-  /**
    * Lightweight liveness payload — no I/O.
    * Handy for a fast "is the process up?" endpoint and as a template
    * for how a service returns a plain object the interceptor will wrap.
@@ -51,5 +40,15 @@ export class HealthService {
       uptimeSeconds: Math.round(process.uptime()),
       timestamp: new Date().toISOString(),
     };
+  }
+
+  /**
+   * Deep check — pings Postgres and inspects heap usage.
+   * Used by Render's health probe and external uptime pings.
+   */
+  readiness(): Promise<HealthCheckResult> {
+    return this.health.check([
+      () => this.db.pingCheck('postgres', { timeout: 3000 }),
+    ]);
   }
 }

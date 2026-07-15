@@ -37,7 +37,7 @@ async function bootstrap() {
   });
 
   // ── Routing shape: /api/v1/... ──
-  app.setGlobalPrefix(`${apiPrefix}/v1`);
+  app.setGlobalPrefix(`${apiPrefix}`);
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: config.get<string>('apiVersion'),
