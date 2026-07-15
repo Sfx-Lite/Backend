@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SFx Lite API — Boilerplate & Onboarding Guide</title>
+<style>
+  :root {
+    --ink: #1a2230;
+    --muted: #5b6472;
+    --line: #e3e7ee;
+    --accent: #2f6df6;
+    --accent-soft: #eef3ff;
+    --code-bg: #0f172a;
+    --code-ink: #e6edf7;
+    --warn-bg: #fff7ed;
+    --warn-line: #f6a94b;
+    --ok-bg: #ecfdf3;
+    --ok-line: #34c77b;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    line-height: 1.6;
+    margin: 0;
+    background: #f6f8fb;
+  }
+  .page {
+    max-width: 860px;
+    margin: 0 auto;
+    background: #fff;
+    padding: 56px 64px;
+  }
+  h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.02em; }
+  h2 {
+    font-size: 21px; margin: 42px 0 12px; padding-top: 14px;
+    border-top: 2px solid var(--line); letter-spacing: -0.01em;
+  }
+  h3 { font-size: 16px; margin: 26px 0 8px; }
+  h4 { font-size: 14px; margin: 18px 0 6px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  p, li { font-size: 14.5px; }
+  .subtitle { color: var(--muted); font-size: 15px; margin: 0 0 4px; }
+  .meta { color: var(--muted); font-size: 12.5px; margin-top: 10px; }
+  code {
+    font-family: "SF Mono", "JetBrains Mono", Consolas, Menlo, monospace;
+    background: #eef1f6; padding: 1.5px 5px; border-radius: 4px; font-size: 12.8px;
+  }
+  pre {
+    background: var(--code-bg); color: var(--code-ink);
+    padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+    font-family: "SF Mono", "JetBrains Mono", Consolas, Menlo, monospace;
+    font-size: 12.4px; line-height: 1.55;
+  }
+  pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
+  .toc { background: #fafbfd; border: 1px solid var(--line); border-radius: 10px; padding: 18px 24px; }
+  .toc ol { margin: 6px 0 0; padding-left: 20px; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .callout { border-radius: 8px; padding: 12px 16px; margin: 16px 0; font-size: 13.6px; }
+  .callout.warn { background: var(--warn-bg); border-left: 4px solid var(--warn-line); }
+  .callout.ok { background: var(--ok-bg); border-left: 4px solid var(--ok-line); }
+  .callout.tip { background: var(--accent-soft); border-left: 4px solid var(--accent); }
+  .callout b { display: block; margin-bottom: 2px; }
+  table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 13px; }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: #f3f6fb; font-weight: 600; }
+  .pill { display:inline-block; background: var(--accent-soft); color: var(--accent);
+          border-radius: 20px; padding: 2px 10px; font-size: 11.5px; font-weight: 600; }
+  .tree { font-family: "SF Mono", Consolas, monospace; font-size: 12.4px; line-height: 1.5;
+          background: #fafbfd; border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; white-space: pre; overflow-x:auto; }
+  .tree .c { color: var(--muted); }
+  hr { border: none; border-top: 1px solid var(--line); margin: 28px 0; }
+  .printbar { position: sticky; top: 0; background:#fff; border-bottom:1px solid var(--line);
+              padding:10px 16px; text-align:right; }
+  .printbar button { background: var(--accent); color:#fff; border:none; border-radius:6px;
+              padding:8px 16px; font-size:13px; cursor:pointer; }
+  .flow { list-style:none; padding:0; margin:14px 0; }
+  .flow li { position:relative; padding:8px 0 8px 30px; border-left:2px solid var(--line); margin-left:8px; }
+  .flow li::before { content:""; position:absolute; left:-6px; top:14px; width:10px; height:10px;
+              background:var(--accent); border-radius:50%; }
+  .flow b { color: var(--ink); }
+  @media print {
+    body { background:#fff; }
+    .page { max-width:none; padding:0 8px; }
+    .printbar { display:none; }
+    h2 { page-break-after: avoid; }
+    pre, table, .tree, .callout { page-break-inside: avoid; }
+    a { color: var(--ink); text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+<div class="printbar"><button onclick="window.print()">Save as PDF ⌘/Ctrl + P</button></div>
+<div class="page">
+
+  <p class="subtitle"><span class="pill">Intern Build Program</span></p>
+  <h1>SFx Lite API — Boilerplate &amp; Onboarding Guide</h1>
+  <p class="subtitle">A NestJS + TypeORM + Postgres backend. Read this once and you can navigate the whole codebase, run it locally, and add a feature module the same way everyone else does.</p>
+  <p class="meta">Framework: NestJS 11 · Language: TypeScript 5.7 · Runtime: Node · DB: PostgreSQL (TypeORM 0.3) · Docs: Swagger at <code>/docs</code></p>
+
+  <div class="toc">
+    <b>Contents</b>
+    <ol>
+      <li><a href="#what">What this project is</a></li>
+      <li><a href="#stack">Tech stack &amp; why each piece is here</a></li>
+      <li><a href="#quickstart">Quick start (get it running in 5 minutes)</a></li>
+      <li><a href="#env">Environment &amp; the auto-<code>.env</code> bootstrap</a></li>
+      <li><a href="#structure">Project structure — every folder explained</a></li>
+      <li><a href="#lifecycle">The request lifecycle</a></li>
+      <li><a href="#pattern">The module / controller / service / DTO pattern</a></li>
+      <li><a href="#swagger">API documentation (Swagger)</a></li>
+      <li><a href="#caching">Caching (cross-module, graceful)</a></li>
+      <li><a href="#addmodule">How to add a new module (step by step)</a></li>
+      <li><a href="#database">Database &amp; migrations</a></li>
+      <li><a href="#datamodel">Data model — entities &amp; core schema</a></li>
+      <li><a href="#conventions">Conventions, scripts &amp; cheat sheet</a></li>
+      <li><a href="#roadmap">Squad roadmap</a></li>
+    </ol>
+  </div>
+
+  <h2 id="what">1 · What this project is</h2>
+  <p><b>SFx Lite</b> is the backend API for a lightweight fintech app (USDC wallets, deposits, transfers, a ledger, KYC and an AI support chat). This repository is the <b>boilerplate</b>: the shared foundation — configuration, security, rate limiting, logging, error handling, database wiring and health checks — on top of which each squad ships feature modules.</p>
+  <p>Nothing business-specific is implemented yet. The point of the boilerplate is that when you add a feature you only write the feature; everything cross-cutting (validation, auth hooks, response shape, error shape, throttling) already works for free.</p>
+
+  <h2 id="stack">2 · Tech stack &amp; why each piece is here</h2>
+  <table>
+    <tr><th>Piece</th><th>Package</th><th>Why it's here</th></tr>
+    <tr><td>Framework</td><td><code>@nestjs/*</code> 11</td><td>Structured, DI-based Node framework. Modules keep features isolated.</td></tr>
+    <tr><td>Config</td><td><code>@nestjs/config</code> + <code>joi</code></td><td>Loads <code>.env</code>, validates it on boot, exposes typed values via <code>ConfigService</code>.</td></tr>
+    <tr><td>Database</td><td><code>@nestjs/typeorm</code>, <code>typeorm</code>, <code>pg</code></td><td>Postgres access with migrations. <code>synchronize</code> is off — schema changes ship as migrations only.</td></tr>
+    <tr><td>Validation</td><td><code>class-validator</code>, <code>class-transformer</code></td><td>DTO decorators validated by a global pipe before controllers run.</td></tr>
+    <tr><td>Security</td><td><code>helmet</code>, <code>compression</code></td><td>Secure headers + gzip, set up in <code>main.ts</code>.</td></tr>
+    <tr><td>Rate limiting</td><td><code>@nestjs/throttler</code></td><td>Dual budget: per-IP for anonymous, per-user for authenticated.</td></tr>
+    <tr><td>Health</td><td><code>@nestjs/terminus</code></td><td>DB + memory health checks for Render/uptime probes.</td></tr>
+    <tr><td>Docs</td><td><code>@nestjs/swagger</code></td><td>Auto-generated API docs at <code>/docs</code> (dev only).</td></tr>
+    <tr><td>Jobs</td><td><code>@nestjs/schedule</code></td><td>Cron/interval jobs (deposit watcher, sweeps) — Squad B.</td></tr>
+  </table>
+
+  <h2 id="quickstart">3 · Quick start</h2>
+  <h4>Prerequisites</h4>
+  <p>Node 20+ and a reachable PostgreSQL database. That's it.</p>
+  <h4>Steps</h4>
+  <pre><code># 1. install dependencies
+npm install
+
+# 2. start the dev server (watch mode)
+npm run dev
+#    → .env is created automatically from .env.example on first run
+#    → API:     http://localhost:4000/api/v1
+#    → Swagger: http://localhost:4000/docs
+#    → Health:  http://localhost:4000/api/v1/health</code></pre>
+  <div class="callout ok">
+    <b>The app validates its config on boot.</b>
+    If a required variable is missing it refuses to start and tells you exactly which one — this is intentional (fail fast). See the next section.
+  </div>
+
+  <h2 id="env">4 · Environment &amp; the auto-<code>.env</code> bootstrap</h2>
+  <p>Configuration is driven entirely by environment variables. There are three files involved:</p>
+  <table>
+    <tr><th>File</th><th>Role</th></tr>
+    <tr><td><code>.env.example</code></td><td>Committed template with every variable and a safe default. The source of truth for "what config exists".</td></tr>
+    <tr><td><code>.env</code></td><td>Your local, git-ignored copy. Created automatically (see below). Put real secrets here.</td></tr>
+    <tr><td><code>scripts/ensure-env.js</code></td><td>Copies <code>.env.example</code> → <code>.env</code> if <code>.env</code> is missing, so a fresh clone boots with zero manual setup. Skipped in production, where platform env vars are the source of truth.</td></tr>
+  </table>
+
+  <h4>How the auto-bootstrap is wired</h4>
+  <p><code>ensure-env.js</code> runs through npm <b>pre-hooks</b> — npm automatically runs a <code>pre&lt;script&gt;</code> before <code>&lt;script&gt;</code>. In <code>package.json</code>:</p>
+  <pre><code>"predev":       "node scripts/ensure-env.js",
+"dev":          "nest start --watch",
+"prestart":     "node scripts/ensure-env.js",
+"start":        "nest start",
+"prestart:dev": "node scripts/ensure-env.js",
+"start:dev":    "nest start --watch",
+"prebuild":     "node scripts/ensure-env.js",
+"build":        "nest build"</code></pre>
+  <p>So whichever way you launch (<code>npm run dev</code>, <code>start</code>, <code>start:dev</code>, or <code>build</code>) the <code>.env</code> is guaranteed to exist first.</p>
+
+  <div class="callout warn">
+    <b>Fixed: "Config validation error … DATABASE_URL is required" on first run.</b>
+    Earlier, <code>ensure-env.js</code> existed but was never called — there were no <code>pre*</code> hooks, so <code>.env</code> was never generated and the app crashed on boot with missing <code>DATABASE_URL</code> / <code>JWT_ACCESS_SECRET</code> / <code>JWT_REFRESH_SECRET</code>. The pre-hooks above now wire it in, and a <code>.env</code> has been generated for you. If you ever hit this again, just run <code>node scripts/ensure-env.js</code> (or copy <code>.env.example</code> to <code>.env</code>) and set a real <code>DATABASE_URL</code>.
+  </div>
+
+  <h4>Validation (fail-fast) — <code>src/config/env.validation.ts</code></h4>
+  <p>On boot, a Joi schema checks the environment. Required values that must be present or the app won't start:</p>
+  <table>
+    <tr><th>Variable</th><th>Rule</th></tr>
+    <tr><td><code>DATABASE_URL</code></td><td>Required. Must be a <code>postgres://</code> / <code>postgresql://</code> URI.</td></tr>
+    <tr><td><code>JWT_ACCESS_SECRET</code></td><td>Required. Min 8 chars.</td></tr>
+    <tr><td><code>JWT_REFRESH_SECRET</code></td><td>Required. Min 8 chars.</td></tr>
+    <tr><td><code>PORT</code>, <code>API_PREFIX</code>, throttle vars…</td><td>Optional — sensible defaults applied.</td></tr>
+  </table>
+  <p>Later-stage secrets (chain RPC, Cloudinary, Anthropic) are intentionally <i>not</i> required at boot; the module that consumes them enforces them when it needs them.</p>
+
+  <h4>Reading config in code — never touch <code>process.env</code> directly</h4>
+  <p><code>src/config/configuration.ts</code> maps raw env vars into a typed, namespaced object. Inject <code>ConfigService</code> and read by dotted key:</p>
+  <pre><code>constructor(private readonly config: ConfigService) {}
+// ...
+const port = this.config.get&lt;number&gt;('port');
+const dbUrl = this.config.get&lt;string&gt;('database.url');
+const ttl = this.config.get&lt;number&gt;('throttle.ttlSeconds');</code></pre>
+
+  <h2 id="structure">5 · Project structure — every folder explained</h2>
+  <div class="tree">src/
+├── main.ts                  <span class="c"># app entry: middleware, CORS, versioning, Swagger, listen()</span>
+├── app.module.ts            <span class="c"># root module: imports config, throttler, db + every feature module</span>
+│
+├── config/
+│   ├── configuration.ts     <span class="c"># maps process.env → typed namespaced config object</span>
+│   ├── env.validation.ts    <span class="c"># Joi schema; fails fast on bad/missing env</span>
+│   └── swagger.config.ts    <span class="c"># setupSwagger() — builds the OpenAPI doc, mounts /docs</span>
+│
+├── common/                  <span class="c"># cross-cutting building blocks (no business logic)</span>
+│   ├── cache/               <span class="c"># CacheService + @Cacheable + ResponseCacheInterceptor</span>
+│   ├── constants/           <span class="c"># shared constant names (throttler profiles…)</span>
+│   ├── decorators/          <span class="c"># @Public(), @CurrentUser()</span>
+│   ├── filters/             <span class="c"># AllExceptionsFilter — one error shape for the whole API</span>
+│   ├── guards/              <span class="c"># AppThrottlerGuard — dual IP/user rate limiting</span>
+│   ├── interceptors/        <span class="c"># response envelope + 30s timeout</span>
+│   └── middleware/          <span class="c"># request-id + structured HTTP logger</span>
+│
+├── database/
+│   ├── database.module.ts   <span class="c"># runtime TypeORM connection (synchronize=false)</span>
+│   ├── data-source.ts       <span class="c"># CLI DataSource used by migration commands</span>
+│   └── migrations/          <span class="c"># generated migration files live here</span>
+│
+└── modules/                 <span class="c"># ⭐ where the app lives — one folder per feature</span>
+    ├── health/              <span class="c"># fully implemented reference module</span>
+    │   ├── health.module.ts
+    │   ├── health.controller.ts
+    │   └── health.service.ts
+    ├── auth/                <span class="c"># STRUCTURE-ONLY skeleton (Squad A) — comments, no logic</span>
+    │   ├── auth.module.ts
+    │   ├── auth.controller.ts
+    │   ├── auth.service.ts
+    │   └── dto/
+    │       ├── login.dto.ts
+    │       └── register.dto.ts
+    │
+    └── <span class="c"># domain folders holding the core entities (see §12):</span>
+        users/ · kyc/ · wallets/ · ledger/ · transactions/ ·
+        beneficiaries/ · notifications/ · fx/ · analytics/ ·
+        chat/ · admin/   <span class="c"># each has entities/&lt;name&gt;.entity.ts</span></div>
+
+  <p><b>The mental model:</b> everything under <code>common/</code>, <code>config/</code> and <code>database/</code> is the shared chassis you rarely edit. Everything you build goes under <code>modules/</code>, one self-contained folder per feature. <code>health</code> is a complete, working example; <code>auth</code> shows the same skeleton with the logic left as comments for Squad A.</p>
+
+  <h2 id="lifecycle">6 · The request lifecycle</h2>
+  <p>Knowing the order things run in explains where each file fits. For an incoming request:</p>
+  <ul class="flow">
+    <li><b>Middleware</b> — <code>RequestIdMiddleware</code> attaches an <code>x-request-id</code>, then <code>HttpLoggerMiddleware</code> starts timing. (Wired in <code>app.module.ts → configure()</code>.)</li>
+    <li><b>Guards</b> — <code>AppThrottlerGuard</code> enforces the rate-limit budget (per-user if authenticated, else per-IP). <code>@Public()</code>/<code>@SkipThrottle()</code> opt routes out.</li>
+    <li><b>Pipes</b> — the global <code>ValidationPipe</code> validates &amp; transforms the body against the route's DTO. Unknown fields are stripped and rejected.</li>
+    <li><b>Controller</b> — the matched route method runs. It does almost nothing but call a service.</li>
+    <li><b>Service</b> — business logic executes (DB queries, token work, external calls) and returns a plain object.</li>
+    <li><b>Interceptors</b> — <code>TransformResponseInterceptor</code> wraps the return value in the standard envelope; <code>TimeoutInterceptor</code> aborts anything over 30s.</li>
+    <li><b>Exception filter</b> — if anything threw, <code>AllExceptionsFilter</code> converts it into the standard error shape (and logs 5xx with the request id).</li>
+  </ul>
+
+  <h4>Every success looks like this</h4>
+  <pre><code>{ "success": true, "data": { ... }, "timestamp": "2026-07-13T..." }</code></pre>
+  <h4>Every error looks like this</h4>
+  <pre><code>{ "success": false, "statusCode": 404, "error": "NotFoundException",
+  "message": "User not found", "path": "/api/v1/users/42",
+  "requestId": "…", "timestamp": "2026-07-13T..." }</code></pre>
+  <p>Because the envelope and error shape are global, your feature code just returns data or throws a Nest exception — the wrapping is automatic.</p>
+
+  <h2 id="pattern">7 · The module / controller / service / DTO pattern</h2>
+  <p>A feature is made of four kinds of files. Here's what each one is responsible for, using the real <code>health</code> module as the example.</p>
+
+  <h3>Module — wires the pieces together</h3>
+  <p>Declares what the feature imports, which controllers expose routes, and which providers (services) are injectable. Registering the module in <code>app.module.ts</code> is what activates its routes.</p>
+  <pre><code>@Module({
+  imports: [TerminusModule],
+  controllers: [HealthController],
+  providers: [HealthService],
+})
+export class HealthModule {}</code></pre>
+
+  <h3>Controller — the HTTP surface</h3>
+  <p>Declares routes and their Swagger metadata, and delegates <i>all</i> logic to the service. <code>@Controller('health')</code> + the global <code>/api/v1</code> prefix means these resolve to <code>/api/v1/health</code>.</p>
+  <pre><code>@ApiTags('health')
+@Controller('health')
+export class HealthController {
+  constructor(private readonly healthService: HealthService) {}
+
+  @Get()            // → GET /api/v1/health
+  @Public()
+  check() {
+    return this.healthService.check();
+  }
+
+  @Get('live')      // → GET /api/v1/health/live
+  @Public()
+  live() {
+    return this.healthService.liveness();
+  }
+}</code></pre>
+
+  <h3>Service — the business logic</h3>
+  <p>Where the real work lives. Injected into the controller. It talks to the DB, other services and indicators, and returns plain objects (the interceptor wraps them).</p>
+  <pre><code>@Injectable()
+export class HealthService {
+  constructor(
+    private readonly health: HealthCheckService,
+    private readonly db: TypeOrmHealthIndicator,
+    private readonly memory: MemoryHealthIndicator,
+    private readonly config: ConfigService,
+  ) {}
+
+  check() {
+    return this.health.check([
+      () =&gt; this.db.pingCheck('postgres', { timeout: 3000 }),
+      () =&gt; this.memory.checkHeap('memory_heap', 512 * 1024 * 1024),
+    ]);
+  }
+
+  liveness() {
+    return { status: 'ok', uptimeSeconds: Math.round(process.uptime()) };
+  }
+}</code></pre>
+
+  <h3>DTO — request shape &amp; validation</h3>
+  <p>A DTO is a class describing a request body plus its validation rules. The global <code>ValidationPipe</code> enforces the decorators before the controller runs, so services can trust their input. (From the <code>auth</code> skeleton:)</p>
+  <pre><code>export class LoginDto {
+  @ApiProperty({ example: 'ada@example.com' })
+  @IsEmail()
+  email!: string;
+
+  @ApiProperty({ example: 'super-secret' })
+  @IsString()
+  @MinLength(8)
+  password!: string;
+}</code></pre>
+
+  <div class="callout tip">
+    <b>Rule of thumb</b>
+    Controllers are thin (routes only). Services are where logic lives. DTOs guard the input. Modules glue them together. If you're writing an <code>if</code> in a controller, it probably belongs in a service.
+  </div>
+
+  <h2 id="swagger">8 · API documentation (Swagger)</h2>
+  <p>Interactive API docs are served at <code>http://localhost:4000/docs</code> in development (disabled in production). They're generated from your code — you never hand-write or maintain a schema file. Two halves work together:</p>
+
+  <h4>The setup half — <code>src/config/swagger.config.ts</code></h4>
+  <p>One central <code>setupSwagger(app)</code> function builds the OpenAPI document (global title, version, bearer-auth) and mounts the UI at <code>/docs</code>. <code>main.ts</code> just calls it:</p>
+  <pre><code>// src/config/swagger.config.ts
+export function setupSwagger(app: INestApplication) {
+  const config = new DocumentBuilder()
+    .setTitle('SFx Lite API')
+    .setDescription('SFx Lite — Intern Build Program')
+    .setVersion('0.1.0')
+    .addBearerAuth()
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('docs', app, document);
+  return document;   // returned so you can optionally write it to disk
+}
+
+// src/main.ts
+if (!isProd) {
+  setupSwagger(app);
+}</code></pre>
+
+  <h4>The content half — decorators next to each route</h4>
+  <p><code>createDocument()</code> scans every controller and DTO and pulls in their decorators. So each endpoint is documented <i>where it's defined</i>, and the docs can't drift from the code:</p>
+  <pre><code>@ApiTags('auth')                 // groups routes under an "auth" heading
+@Controller('auth')
+export class AuthController {
+  @Post('login')
+  @ApiOperation({ summary: 'Exchange credentials for access + refresh tokens' })
+  @ApiResponse({ status: 200, description: 'Tokens issued' })
+  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  login(@Body() dto: LoginDto) { ... }
+}
+
+// DTOs describe request bodies:
+export class LoginDto {
+  @ApiProperty({ example: 'ada@example.com' })
+  @IsEmail() email!: string;
+}</code></pre>
+
+  <table>
+    <tr><th>Decorator</th><th>Put it on</th><th>Does</th></tr>
+    <tr><td><code>@ApiTags('x')</code></td><td>Controller</td><td>Groups its routes under one heading in <code>/docs</code>.</td></tr>
+    <tr><td><code>@ApiOperation({ summary })</code></td><td>Route method</td><td>One-line description of the endpoint.</td></tr>
+    <tr><td><code>@ApiResponse({ status, description })</code></td><td>Route method</td><td>Documents each possible response.</td></tr>
+    <tr><td><code>@ApiProperty({ example })</code></td><td>DTO field</td><td>Describes a request/response field + example.</td></tr>
+    <tr><td><code>@ApiBearerAuth()</code></td><td>Route/controller</td><td>Marks a route as needing the bearer token.</td></tr>
+  </table>
+
+  <div class="callout tip">
+    <b>Why code-first, not a hand-written <code>swagger.json</code></b>
+    Decorators live next to the code they describe, so the docs update the instant a route changes. A hand-maintained schema drifts out of sync the moment someone forgets to edit it. If the frontend needs a static spec for client codegen, generate it — add <code>writeFileSync('./openapi.json', JSON.stringify(setupSwagger(app), null, 2))</code> — never write it by hand.
+  </div>
+
+  <h2 id="caching">9 · Caching (cross-module, graceful)</h2>
+  <p>A single <code>CacheService</code> is available to every module, backed by Redis when it's there and an in-memory store when it isn't. It lives in <code>src/common/cache/</code> and is registered as a <code>@Global()</code> module, so you inject it anywhere without importing anything.</p>
+
+  <div class="callout ok">
+    <b>Cache never blocks development or deployment.</b>
+    If <code>REDIS_URL</code> is unset, or Redis is unreachable, or the <code>ioredis</code> package isn't even installed, the app falls back to a bounded in-memory cache and keeps running — locally, in staging, and in production. Every cache call is wrapped so a cache failure degrades to a miss, never an error. No Docker required.
+  </div>
+
+  <h4>Two ways to use it</h4>
+  <p><b>1 — Cache a GET response declaratively</b> with <code>@Cacheable()</code>. Only routes that opt in are cached (so writes never are), and keys are per-user by default so data can't leak between users:</p>
+  <pre><code>import { Cacheable } from '../../common/cache/cache.decorators';
+
+@Get('rates')
+@Cacheable(30)                 // cache this response for 30 seconds
+getRates() {
+  return this.fxService.latest();
+}</code></pre>
+
+  <p><b>2 — Cache anything inside a service</b> with <code>wrap()</code> (read-through) or the raw <code>get</code>/<code>set</code>/<code>del</code>:</p>
+  <pre><code>constructor(private readonly cache: CacheService) {}
+
+async latest() {
+  // returns cached value, or runs the fn, caches it, and returns it
+  return this.cache.wrap('fx:usd-ngn', () =&gt; this.fetchFromProvider(), 30);
+}
+
+// or manually:
+await this.cache.set('user:42:profile', profile, 120);
+const p = await this.cache.get&lt;Profile&gt;('user:42:profile');
+await this.cache.del('user:42:profile');   // invalidate after an update</code></pre>
+
+  <h4>Turning on the shared (Redis) cache</h4>
+  <p>Optional, and only useful once you run more than one instance (so they share a cache). Two steps:</p>
+  <pre><code>npm i ioredis
+# then in .env:
+REDIS_URL=redis://localhost:6379     # or your managed Redis / rediss:// URL</code></pre>
+  <p>On boot the log tells you which backend is live — <code>Redis cache connected.</code> or <code>using in-memory cache.</code> Config lives under the <code>cache</code> namespace (<code>CACHE_TTL_SECONDS</code>, <code>CACHE_MAX_ITEMS</code>) in <code>configuration.ts</code>.</p>
+
+  <table>
+    <tr><th>File</th><th>Role</th></tr>
+    <tr><td><code>common/cache/cache.service.ts</code></td><td>The cache API: <code>get/set/del/wrap</code>, Redis-or-memory, never throws.</td></tr>
+    <tr><td><code>common/cache/cache.module.ts</code></td><td><code>@Global()</code> module exposing <code>CacheService</code> everywhere.</td></tr>
+    <tr><td><code>common/cache/cache.decorators.ts</code></td><td><code>@Cacheable(ttl?)</code> and <code>@CacheKey()</code>.</td></tr>
+    <tr><td><code>common/cache/response-cache.interceptor.ts</code></td><td>Caches <code>@Cacheable</code> GET routes; registered globally in <code>app.module.ts</code>.</td></tr>
+  </table>
+
+  <div class="callout warn">
+    <b>Invalidate on write.</b>
+    The response cache only auto-expires by TTL. After a mutation that changes cached data, call <code>cache.del(key)</code> (or use short TTLs) so users don't see stale results. Never cache authenticated, user-specific data under a shared key.
+  </div>
+
+  <h2 id="addmodule">10 · How to add a new module (step by step)</h2>
+  <p>Say you're adding a <code>wallets</code> feature. Do this:</p>
+
+  <h4>1. Scaffold (or copy the health folder)</h4>
+  <pre><code># Nest CLI generates the trio for you:
+npx nest g module  modules/wallets
+npx nest g controller modules/wallets --no-spec
+npx nest g service  modules/wallets --no-spec
+
+# or copy src/modules/health and rename.</code></pre>
+
+  <h4>2. Add DTOs for any request bodies</h4>
+  <pre><code>// src/modules/wallets/dto/create-wallet.dto.ts
+export class CreateWalletDto {
+  @ApiProperty() @IsString() label!: string;
+}</code></pre>
+
+  <h4>3. (If it owns data) add an entity + register it</h4>
+  <pre><code>// src/modules/wallets/entities/wallet.entity.ts
+@Entity('wallets')
+export class Wallet {
+  @PrimaryGeneratedColumn('uuid') id!: string;
+  @Column({ type: 'numeric', precision: 18, scale: 6 }) balance!: string; // money = numeric, never float
+}
+
+// in wallets.module.ts:
+imports: [TypeOrmModule.forFeature([Wallet])]</code></pre>
+  <div class="callout warn">
+    <b>Money is always <code>numeric(18,6)</code>, never a float.</b>
+    Ledger rows are append-only; balance changes happen inside DB transactions with row locks. Never use <code>float</code>/<code>double</code> for currency.
+  </div>
+
+  <h4>4. Write the controller (routes) and service (logic)</h4>
+  <p>Follow the health example above — controller delegates, service does the work.</p>
+
+  <h4>5. Register the module in <code>app.module.ts</code></h4>
+  <pre><code>import { WalletsModule } from './modules/wallets/wallets.module';
+
+@Module({
+  imports: [ /* …existing… */ WalletsModule ],
+})</code></pre>
+  <p>That's it — the routes now appear under <code>/api/v1/wallets</code> and in Swagger, with validation, throttling, the response envelope and error handling already applied.</p>
+
+  <h4>6. Generate a migration if the schema changed</h4>
+  <pre><code>npm run migration:generate -- src/database/migrations/AddWallets
+npm run migration:run</code></pre>
+
+  <h2 id="database">11 · Database &amp; migrations</h2>
+  <p>There are two TypeORM setups on purpose:</p>
+  <table>
+    <tr><th>File</th><th>Used by</th><th>Notes</th></tr>
+    <tr><td><code>database/database.module.ts</code></td><td>The running app</td><td><code>autoLoadEntities: true</code>, <code>synchronize: false</code>, <code>migrationsRun: false</code>. Never auto-alters your schema.</td></tr>
+    <tr><td><code>database/data-source.ts</code></td><td>The TypeORM CLI</td><td>Points at <code>src/**/*.entity.ts</code> and the migrations folder for generate/run/revert.</td></tr>
+  </table>
+  <h4>Migration commands</h4>
+  <pre><code>npm run migration:generate -- src/database/migrations/&lt;Name&gt;   # diff entities → new migration
+npm run migration:run                                          # apply pending migrations
+npm run migration:revert                                       # roll back the last one</code></pre>
+  <div class="callout warn">
+    <b>Schema changes ship as migrations only.</b>
+    <code>synchronize</code> is permanently <code>false</code>. Generate a migration, review it, commit it. This is a fintech-grade rule — never let the app silently mutate production tables.
+  </div>
+
+  <h2 id="datamodel">12 · Data model — entities &amp; core schema</h2>
+  <p>The starting schema is expressed as TypeORM entities (one <code>&lt;name&gt;.entity.ts</code> per table) under each domain folder in <code>src/modules/</code>. These are the source of truth; run <code>npm run migration:generate</code> to turn them into the SQL that actually creates the tables. The backend team refines these in Week 1.</p>
+
+  <div class="callout tip">
+    <b>Entities define the schema; migrations apply it.</b>
+    Because <code>synchronize</code> is off, creating an entity file does not touch the database. The migration CLI (<code>data-source.ts</code>, glob <code>src/**/*.entity.ts</code>) reads every entity and generates a migration. Review it, commit it, and everyone runs <code>npm run migration:run</code> once against the shared database.
+  </div>
+
+  <table>
+    <tr><th>Table</th><th>Purpose</th><th>Key columns / notes</th></tr>
+    <tr><td><code>users</code></td><td>Account + profile + KYC status</td><td>unique <code>username</code>/<code>email</code>/<code>google_id</code>; <code>password_hash</code> null for Google-only; <code>role</code>, <code>kyc_status</code> enums; <code>pin_hash</code>.</td></tr>
+    <tr><td><code>kyc_submissions</code></td><td>Uploaded doc + selfie per review</td><td><code>doc_type</code>, <code>status</code> enums; <code>reviewed_by</code> → admin.</td></tr>
+    <tr><td><code>wallets</code></td><td>One deposit address per user</td><td>unique <code>deposit_address</code>; <code>derivation_index</code>; <code>swept_balance_usdc</code> numeric(18,6).</td></tr>
+    <tr><td><code>ledger_entries</code></td><td>Append-only double-entry ledger</td><td><code>direction</code> debit/credit; <code>amount_usdc</code>, <code>balance_after</code> numeric(18,6); columns are <code>update:false</code>.</td></tr>
+    <tr><td><code>transactions</code></td><td>User-facing money movements</td><td><code>type</code>/<code>status</code> enums; <code>from/to_user_id</code>, <code>external_address</code>, <code>tx_hash</code>; <code>fee_usdc</code>, <code>amount_usdc</code>.</td></tr>
+    <tr><td><code>beneficiaries</code></td><td>Saved payees</td><td><code>type</code> internal/external; <code>identifier</code> = username or address; unique per user.</td></tr>
+    <tr><td><code>notifications</code></td><td>Per-user in-app alerts</td><td><code>read_at</code> null until opened.</td></tr>
+    <tr><td><code>fx_rates</code></td><td>Exchange-rate snapshots</td><td><code>rate</code> numeric(18,8); query latest by <code>created_at</code>.</td></tr>
+    <tr><td><code>analytics_events</code></td><td>Product analytics</td><td>nullable <code>user_id</code>; <code>properties</code> jsonb.</td></tr>
+    <tr><td><code>chat_conversations</code></td><td>AI support threads</td><td>one per user thread.</td></tr>
+    <tr><td><code>chat_messages</code></td><td>Turns within a thread</td><td><code>role</code> user/assistant/system; <code>content</code> text.</td></tr>
+    <tr><td><code>doc_chunks</code></td><td>RAG knowledge base</td><td><code>embedding</code> → pgvector (see note below); <code>metadata</code> jsonb.</td></tr>
+    <tr><td><code>audit_log</code></td><td>Append-only admin action trail</td><td><code>admin_id</code>, <code>action</code>, <code>entity</code>/<code>entity_id</code>, <code>metadata</code> jsonb.</td></tr>
+  </table>
+
+  <div class="callout warn">
+    <b>Two things to finish by hand in the first migration.</b>
+    <b>Money</b> is always <code>numeric(18,6)</code> (never float), and the ledger is append-only.
+    <b>pgvector:</b> <code>doc_chunks.embedding</code> is declared as text so migrations generate cleanly. In the migration, enable the extension and switch the type:
+    <code>CREATE EXTENSION IF NOT EXISTS vector;</code> then
+    <code>ALTER TABLE doc_chunks ALTER COLUMN embedding TYPE vector(1536);</code> and add an ivfflat/hnsw index for similarity search.
+  </div>
+
+  <h2 id="conventions">13 · Conventions, scripts &amp; cheat sheet</h2>
+  <h4>npm scripts</h4>
+  <table>
+    <tr><th>Command</th><th>Does</th></tr>
+    <tr><td><code>npm run dev</code></td><td>Start in watch mode (ensures <code>.env</code> first).</td></tr>
+    <tr><td><code>npm run start:dev</code></td><td>Same as dev; the conventional Nest name.</td></tr>
+    <tr><td><code>npm run build</code></td><td>Compile to <code>dist/</code>.</td></tr>
+    <tr><td><code>npm run start:prod</code></td><td>Run the compiled build.</td></tr>
+    <tr><td><code>npm run lint</code> / <code>format</code></td><td>ESLint --fix / Prettier.</td></tr>
+    <tr><td><code>npm test</code> / <code>test:e2e</code></td><td>Unit / end-to-end tests.</td></tr>
+    <tr><td><code>npm run migration:*</code></td><td>generate / run / revert migrations.</td></tr>
+  </table>
+
+  <h4>Conventions</h4>
+  <table>
+    <tr><th>Topic</th><th>Rule</th></tr>
+    <tr><td>File names</td><td><code>&lt;name&gt;.&lt;type&gt;.ts</code> — e.g. <code>wallets.controller.ts</code>, <code>create-wallet.dto.ts</code>, <code>wallet.entity.ts</code>.</td></tr>
+    <tr><td>Routing</td><td>All routes live under <code>/api/v1/</code> (global prefix + URI versioning).</td></tr>
+    <tr><td>Config</td><td>Read via <code>ConfigService.get('dotted.key')</code> — never <code>process.env</code> in feature code.</td></tr>
+    <tr><td>Auth</td><td>Mark open routes with <code>@Public()</code>; read the user with <code>@CurrentUser()</code>.</td></tr>
+    <tr><td>Errors</td><td>Throw Nest exceptions (<code>NotFoundException</code>, etc.). The filter formats them.</td></tr>
+    <tr><td>Responses</td><td>Return plain objects. The interceptor adds <code>{ success, data, timestamp }</code>.</td></tr>
+    <tr><td>Money</td><td><code>numeric(18,6)</code>, ledger append-only, mutate inside transactions.</td></tr>
+    <tr><td>Logging</td><td>Never log request bodies (KYC/credentials). Use the request id to trace issues.</td></tr>
+  </table>
+
+  <h2 id="roadmap">14 · Squad roadmap</h2>
+  <p>Feature modules land in <code>src/modules/</code> and get registered in <code>app.module.ts</code> as squads ship them:</p>
+  <table>
+    <tr><th>Squad</th><th>Modules</th></tr>
+    <tr><td>A</td><td>Auth, Users, Kyc, Notifications</td></tr>
+    <tr><td>B</td><td>Wallets, Deposits, Sweeps, Withdrawals, Reconciliation</td></tr>
+    <tr><td>C</td><td>Ledger, Transfers, Beneficiaries, History, Fx</td></tr>
+    <tr><td>D</td><td>Chat, Admin</td></tr>
+  </table>
+  <p><code>modules/health</code> is your working reference. <code>modules/auth</code> is the skeleton to flesh out first. Copy their shape, register the module, and the chassis does the rest.</p>
+
+  <hr />
+  <p class="meta">Generated for the SFx Lite boilerplate · NestJS 11.</p>
+
+</div>
+</body>
+</html>
