@@ -15,7 +15,7 @@ import { BaseEntity } from '../../../common/entities/base.entity';
  */
 @Entity('doc_chunks')
 export class DocChunk extends BaseEntity {
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   source?: string | null;
 
   @Column({ type: 'text' })

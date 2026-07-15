@@ -25,7 +25,7 @@ export class KycSubmission extends BaseEntity {
   @Column({ type: 'enum', enum: KycSubmissionStatus, default: KycSubmissionStatus.PENDING })
   status!: KycSubmissionStatus;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   reason?: string | null;
 
   @Column({ name: 'reviewed_by', type: 'uuid', nullable: true })
