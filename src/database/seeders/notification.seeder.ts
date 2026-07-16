@@ -1,7 +1,10 @@
+import { Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import { Notification } from '../../modules/notifications/entities/notification.entity';
 import { User } from '../../modules/users/entities/user.entity';
+
+const logger = new Logger('NotificationSeeder');
 
 export async function seedNotification(dataSource: DataSource) {
   const notificationRepository = dataSource.getRepository(Notification);
@@ -25,7 +28,7 @@ export async function seedNotification(dataSource: DataSource) {
   });
 
   if (existing) {
-    console.log('ℹ️ Notification already exists. Skipping...');
+    logger.log('Notification already exists. Skipping...');
     return existing;
   }
 
@@ -38,7 +41,7 @@ export async function seedNotification(dataSource: DataSource) {
 
   await notificationRepository.save(notification);
 
-  console.log('✅ Notification created.');
+  logger.log('Notification created.');
 
   return notification;
 }

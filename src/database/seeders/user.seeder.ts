@@ -1,9 +1,12 @@
+import { Logger } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { DataSource } from 'typeorm';
 
 import { User } from '../../modules/users/entities/user.entity';
 import { UserRole } from '../../modules/users/enums/user-role.enum';
 import { KycStatus } from '../../modules/users/enums/kyc-status.enum';
+
+const logger = new Logger('UserSeeder');
 
 export async function seedUsers(dataSource: DataSource) {
   const userRepository = dataSource.getRepository(User);
@@ -15,7 +18,7 @@ export async function seedUsers(dataSource: DataSource) {
   });
 
   if (existingUser) {
-    console.log('ℹ️ Test user already exists. Skipping...');
+    logger.log('Test user already exists. Skipping...');
     return existingUser;
   }
 
@@ -34,7 +37,7 @@ export async function seedUsers(dataSource: DataSource) {
 
   await userRepository.save(user);
 
-  console.log('✅ Test user created.');
+  logger.log('Test user created.');
 
   return user;
 }

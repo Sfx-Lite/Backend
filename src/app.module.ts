@@ -1,14 +1,16 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 
+import { env } from './config/env';
 import configuration from './config/configuration';
 import { envValidationSchema } from './config/env.validation';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { WalletsModule } from './modules/wallets/wallets.module';
 
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { HttpLoggerMiddleware } from './common/middleware/http-logger.middleware';
@@ -33,22 +35,19 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 
     // Dual-budget rate limiting — resolved by AppThrottlerGuard:
     // 'ip' applies to anonymous traffic, 'user' to authenticated traffic.
-    ThrottlerModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        throttlers: [
-          {
-            name: THROTTLER_IP,
-            ttl: config.get<number>('throttle.ttlSeconds')! * 1000,
-            limit: config.get<number>('throttle.limitIp')!,
-          },
-          {
-            name: THROTTLER_USER,
-            ttl: config.get<number>('throttle.ttlSeconds')! * 1000,
-            limit: config.get<number>('throttle.limitUser')!,
-          },
-        ],
-      }),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          name: THROTTLER_IP,
+          ttl: env.throttle.ttlSeconds * 1000,
+          limit: env.throttle.limitIp,
+        },
+        {
+          name: THROTTLER_USER,
+          ttl: env.throttle.ttlSeconds * 1000,
+          limit: env.throttle.limitUser,
+        },
+      ],
     }),
 
     ScheduleModule.forRoot(), // deposit watcher / sweep / reconciliation jobs (Squad B)
@@ -59,7 +58,8 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     // ── Feature modules land here as squads ship them ──
     AuthModule, // Squad A
     // UsersModule, KycModule, NotificationsModule   (Squad A)
-    // WalletsModule, DepositsModule, SweepsModule, WithdrawalsModule, ReconciliationModule (Squad B)
+    WalletsModule, // Squad B — HD deposit addresses
+    // DepositsModule, SweepsModule, WithdrawalsModule, ReconciliationModule (Squad B)
     // LedgerModule, TransfersModule, BeneficiariesModule, HistoryModule, FxModule (Squad C)
     // ChatModule, AdminModule (Squad D)
     AnalyticsModule,

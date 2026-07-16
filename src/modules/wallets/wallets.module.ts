@@ -1,0 +1,19 @@
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+
+import { Wallet } from './entities/wallet.entity';
+import { WalletsController } from './wallets.controller';
+import { WalletsService } from './wallets.service';
+
+/**
+ * WalletsModule — Squad B (Wallet & Escrow)
+ * Exports WalletsService so AuthModule can assign a deposit address at signup,
+ * and so the deposit-watcher / sweep jobs can resolve user wallets later.
+ */
+@Module({
+  imports: [TypeOrmModule.forFeature([Wallet])],
+  controllers: [WalletsController],
+  providers: [WalletsService],
+  exports: [WalletsService],
+})
+export class WalletsModule {}

@@ -1,7 +1,10 @@
+import { Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import { Wallet } from '../../modules/wallets/entities/wallet.entity';
 import { User } from '../../modules/users/entities/user.entity';
+
+const logger = new Logger('WalletSeeder');
 
 export async function seedWallet(dataSource: DataSource) {
   const walletRepository = dataSource.getRepository(Wallet);
@@ -24,7 +27,7 @@ export async function seedWallet(dataSource: DataSource) {
   });
 
   if (existingWallet) {
-    console.log('ℹ️ Wallet already exists. Skipping...');
+    logger.log('Wallet already exists. Skipping...');
     return existingWallet;
   }
 
@@ -38,7 +41,7 @@ export async function seedWallet(dataSource: DataSource) {
 
   await walletRepository.save(wallet);
 
-  console.log('✅ Test wallet created.');
+  logger.log('Test wallet created.');
 
   return wallet;
 }

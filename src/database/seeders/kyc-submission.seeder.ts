@@ -1,9 +1,12 @@
+import { Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import { User } from '../../modules/users/entities/user.entity';
 import { KycSubmission } from '../../modules/kyc/entities/kyc-submission.entity';
 import { KycDocType } from '../../modules/kyc/enums/kyc-doc-type.enum';
 import { KycSubmissionStatus } from '../../modules/kyc/enums/kyc-submission-status.enum';
+
+const logger = new Logger('KycSubmissionSeeder');
 
 export async function seedKycSubmission(dataSource: DataSource) {
   const userRepository = dataSource.getRepository(User);
@@ -26,7 +29,7 @@ export async function seedKycSubmission(dataSource: DataSource) {
   });
 
   if (existing) {
-    console.log('ℹ️ KYC submission already exists. Skipping...');
+    logger.log('KYC submission already exists. Skipping...');
     return existing;
   }
 
@@ -40,7 +43,7 @@ export async function seedKycSubmission(dataSource: DataSource) {
 
   await kycRepository.save(submission);
 
-  console.log('✅ Test KYC submission created.');
+  logger.log('Test KYC submission created.');
 
   return submission;
 }

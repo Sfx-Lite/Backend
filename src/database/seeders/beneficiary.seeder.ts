@@ -1,8 +1,11 @@
+import { Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import { Beneficiary } from '../../modules/beneficiaries/entities/beneficiary.entity';
 import { BeneficiaryType } from '../../modules/beneficiaries/enums/beneficiary-type.enum';
 import { User } from '../../modules/users/entities/user.entity';
+
+const logger = new Logger('BeneficiarySeeder');
 
 export async function seedBeneficiaries(dataSource: DataSource) {
   const beneficiaryRepository = dataSource.getRepository(Beneficiary);
@@ -26,7 +29,7 @@ export async function seedBeneficiaries(dataSource: DataSource) {
   });
 
   if (existing) {
-    console.log('ℹ️ Beneficiary already exists. Skipping...');
+    logger.log('Beneficiary already exists. Skipping...');
     return existing;
   }
 
@@ -39,7 +42,7 @@ export async function seedBeneficiaries(dataSource: DataSource) {
 
   await beneficiaryRepository.save(beneficiary);
 
-  console.log('✅ Test beneficiary created.');
+  logger.log('Test beneficiary created.');
 
   return beneficiary;
 }

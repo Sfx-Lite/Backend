@@ -1,15 +1,18 @@
 import {
   Injectable,
   ConflictException,
+  Logger,
   NotImplementedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 
+import { env } from '../../config/env';
+import { sendResponse } from '../../common/utils/response.util';
 import { User } from '../users/entities/user.entity';
+import { WalletsService } from '../wallets/wallets.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
@@ -21,12 +24,30 @@ import { RegisterDto } from './dto/register.dto';
  */
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectRepository(User)
     private readonly users: Repository<User>,
     private readonly jwt: JwtService,
-    private readonly config: ConfigService,
+    private readonly wallets: WalletsService,
   ) {}
+
+  /**
+   * Assign the user's on-chain deposit address at signup.
+   * Non-fatal: if the wallet service isn't configured yet (no master mnemonic),
+   * registration still succeeds and the address is backfilled on first use —
+   * this keeps Squad A's M1 login flow unblocked per the Week 1 plan.
+   */
+  private async provisionDepositAddress(userId: string): Promise<void> {
+    try {
+      await this.wallets.createForUser(userId);
+    } catch (err) {
+      this.logger.warn(
+        `Deposit address not provisioned for user ${userId}: ${(err as Error).message}`,
+      );
+    }
+  }
 
   /**
    * Single source of truth for issuing a token pair. Access and refresh
@@ -41,10 +62,11 @@ export class AuthService {
   private async issueTokens(user: User) {
     const payload = { sub: user.id, email: user.email, role: user.role };
 
-    // getOrThrow: these two are Joi-required at boot, so they're always
-    // defined at runtime — getOrThrow tells TypeScript that too (plain
-    // .get<string>() types as `string | undefined`, which is what was
-    // breaking signAsync's overload resolution).
+    // env.jwt.* is the single source of truth (see src/config/env.ts).
+    // accessSecret / refreshSecret are Joi-required at boot, so they're always
+    // defined at runtime — the `!` tells TypeScript that too (the typed env
+    // widens them to `string | undefined`, which breaks signAsync's overload
+    // resolution).
     //
     // `as any` on expiresIn: jsonwebtoken's newer types want a branded
     // `StringValue` (from the `ms` package) instead of a plain string,
@@ -53,13 +75,13 @@ export class AuthService {
     // @nestjs/jwt + jsonwebtoken v9 — not a real type-safety hole here,
     // since the value always comes from our own validated env config.
     const accessToken = await this.jwt.signAsync(payload, {
-      secret: this.config.getOrThrow<string>('jwt.accessSecret'),
-      expiresIn: this.config.get<string>('jwt.accessExpiresIn', '15m') as any,
+      secret: env.jwt.accessSecret!,
+      expiresIn: env.jwt.accessExpiresIn as any,
     });
 
     const refreshToken = await this.jwt.signAsync(payload, {
-      secret: this.config.getOrThrow<string>('jwt.refreshSecret'),
-      expiresIn: this.config.get<string>('jwt.refreshExpiresIn', '7d') as any,
+      secret: env.jwt.refreshSecret!,
+      expiresIn: env.jwt.refreshExpiresIn as any,
     });
 
     return { accessToken, refreshToken };
@@ -97,13 +119,17 @@ export class AuthService {
 
     await this.users.save(user);
 
+    await this.provisionDepositAddress(user.id);
+
     const tokens = await this.issueTokens(user);
 
-    return {
-      message: 'Registration successful',
-      ...tokens,
-      user: this.toPublicUser(user),
-    };
+    return sendResponse(
+      {
+        ...tokens,
+        user: this.toPublicUser(user),
+      },
+      'Registration successful',
+    );
   }
 
   login(dto: LoginDto) {

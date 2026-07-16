@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AnalyticsEvent } from './entities/analytics-event.entity';
 import { CreateEventDto } from './dto/create-event.dto';
+import { sendResponse } from '../../common/utils/response.util';
 
 @Injectable()
 export class AnalyticsService {
@@ -20,6 +21,8 @@ export class AnalyticsService {
       actorType: 'user', 
     });
 
-    return this.eventsRepo.save(event);
+    const saved = await this.eventsRepo.save(event);
+
+    return sendResponse(saved, 'Event logged successfully');
   }
 }

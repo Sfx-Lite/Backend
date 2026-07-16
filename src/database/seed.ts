@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { Logger } from '@nestjs/common';
 import AppDataSource from './data-source';
 import { seedUsers } from './seeders/user.seeder';
 import { seedWallet } from './seeders/wallet.seeder';
@@ -7,11 +8,13 @@ import { seedKycSubmission } from './seeders/kyc-submission.seeder';
 import { seedFxRate } from './seeders/fx-rate.seeder';
 import { seedNotification } from './seeders/notification.seeder';
 
+const logger = new Logger('Seed');
+
 async function seed() {
   try {
     await AppDataSource.initialize();
 
-    console.log('🌱 Database connection established.');
+    logger.log('Database connection established.');
 
     // 👇 Put it here
     const user = await seedUsers(AppDataSource);
@@ -26,11 +29,11 @@ async function seed() {
 
     await seedNotification(AppDataSource);
 
-    console.log(`👤 Seeded user: ${user.email}`);
+    logger.log(`Seeded user: ${user.email}`);
 
-    console.log('✅ Database seeding completed.');
+    logger.log('Database seeding completed.');
   } catch (error) {
-    console.error('❌ Seeding failed:', error);
+    logger.error('Seeding failed', error instanceof Error ? error.stack : String(error));
     process.exit(1);
   } finally {
     if (AppDataSource.isInitialized) {

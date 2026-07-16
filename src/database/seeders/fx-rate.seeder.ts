@@ -1,6 +1,9 @@
+import { Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import { FxRate } from '../../modules/fx/entities/fx-rate.entity';
+
+const logger = new Logger('FxRateSeeder');
 
 export async function seedFxRate(dataSource: DataSource) {
   const fxRateRepository = dataSource.getRepository(FxRate);
@@ -13,7 +16,7 @@ export async function seedFxRate(dataSource: DataSource) {
   });
 
   if (existing) {
-    console.log('ℹ️ FX rate already exists. Skipping...');
+    logger.log('FX rate already exists. Skipping...');
     return existing;
   }
 
@@ -26,7 +29,7 @@ export async function seedFxRate(dataSource: DataSource) {
 
   await fxRateRepository.save(fxRate);
 
-  console.log('✅ FX rate created.');
+  logger.log('FX rate created.');
 
   return fxRate;
 }
