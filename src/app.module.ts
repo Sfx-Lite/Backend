@@ -8,6 +8,7 @@ import configuration from './config/configuration';
 import { envValidationSchema } from './config/env.validation';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './modules/health/health.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { HttpLoggerMiddleware } from './common/middleware/http-logger.middleware';
@@ -56,7 +57,8 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     HealthModule,
 
     // ── Feature modules land here as squads ship them ──
-    // AuthModule, UsersModule, KycModule, NotificationsModule   (Squad A)
+    AuthModule, // Squad A
+    // UsersModule, KycModule, NotificationsModule   (Squad A)
     // WalletsModule, DepositsModule, SweepsModule, WithdrawalsModule, ReconciliationModule (Squad B)
     // LedgerModule, TransfersModule, BeneficiariesModule, HistoryModule, FxModule (Squad C)
     // ChatModule, AdminModule (Squad D)
