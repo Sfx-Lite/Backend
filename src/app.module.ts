@@ -19,6 +19,8 @@ import { CacheModule } from './common/cache/cache.module';
 import { ResponseCacheInterceptor } from './common/cache/response-cache.interceptor';
 import { THROTTLER_IP, THROTTLER_USER } from './common/constants';
 
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -58,6 +60,7 @@ import { THROTTLER_IP, THROTTLER_USER } from './common/constants';
     // WalletsModule, DepositsModule, SweepsModule, WithdrawalsModule, ReconciliationModule (Squad B)
     // LedgerModule, TransfersModule, BeneficiariesModule, HistoryModule, FxModule (Squad C)
     // ChatModule, AdminModule (Squad D)
+    AnalyticsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AppThrottlerGuard },
