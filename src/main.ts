@@ -12,7 +12,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
   });
-  
+
   const config = app.get(ConfigService);
   const port = config.get<number>('port')!;
   const apiPrefix = config.get<string>('apiPrefix')!;
@@ -46,9 +46,9 @@ async function bootstrap() {
   // ── DTO validation everywhere ──
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,            // strip unknown properties
+      whitelist: true, // strip unknown properties
       forbidNonWhitelisted: true, // ...and reject them loudly
-      transform: true,            // auto-cast params to DTO types
+      transform: true, // auto-cast params to DTO types
       transformOptions: { enableImplicitConversion: true },
     }),
   );
@@ -62,7 +62,9 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   await app.listen(port, '0.0.0.0');
-  logger.log(`SFx Lite API running on http://localhost:${port}/${apiPrefix}/v1`);
+  logger.log(
+    `SFx Lite API running on http://localhost:${port}/${apiPrefix}/v1`,
+  );
   if (!isProd) logger.log(`Swagger docs on http://localhost:${port}/docs`);
 }
 
