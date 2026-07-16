@@ -2,8 +2,8 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsString, MinLength } from 'class-validator';
 
 /**
- * RegisterDto — STRUCTURE REFERENCE ONLY (Squad A)
- * ────────────────────────────────────────────────
+ * RegisterDto — Squad A
+ * ─────────────────────
  * A DTO defines the exact shape of a request body and its validation rules.
  * The global ValidationPipe (see main.ts) strips unknown fields, rejects
  * extras, and runs these decorators before the controller is ever called —
