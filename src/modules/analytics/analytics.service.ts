@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AnalyticsEvent } from './entities/analytics-event.entity';
 import { CreateEventDto } from './dto/create-event.dto';
-import { sendResponse } from '../../common/utils/response.util';
 import { UserRole } from '../users/enums/user-role.enum';
 
 @Injectable()
