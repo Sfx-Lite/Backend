@@ -1,26 +1,34 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { Public } from '../../common/decorators/public.decorator';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
+import { GoogleProfile } from './interfaces/google-profile.interface';
 
-/**
- * AuthController — STRUCTURE REFERENCE ONLY (Squad A)
- * ──────────────────────────────────────────────────
- * Shows how routes are declared. Base path 'auth' + global prefix/version
- * means these resolve to /api/v1/auth/*. Each method is one route and does
- * nothing but validate input (via the DTO) and hand off to the service.
- *
- * @Public() marks a route as reachable without a JWT once the auth guard
- * is switched on globally.
- */
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
-  // POST /api/v1/auth/register
+  @Get('google')
+  @Public()
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: 'Start Google OAuth login' })
+  googleAuth() {
+    return;
+  }
+
+  @Get('google/callback')
+  @Public()
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: 'Handle Google OAuth callback' })
+  async googleAuthCallback(@Req() req: Request) {
+    return this.authService.googleLogin(req.user as GoogleProfile);
+  }
+
   @Post('register')
   @Public()
   @ApiOperation({ summary: 'Register a new user (stub)' })
@@ -28,18 +36,20 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
-  // POST /api/v1/auth/login
   @Post('login')
   @Public()
-  @ApiOperation({ summary: 'Exchange credentials for access + refresh tokens (stub)' })
+  @ApiOperation({
+    summary: 'Exchange credentials for access + refresh tokens (stub)',
+  })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
 
-  // POST /api/v1/auth/refresh
   @Post('refresh')
   @Public()
-  @ApiOperation({ summary: 'Issue a new access token from a refresh token (stub)' })
+  @ApiOperation({
+    summary: 'Issue a new access token from a refresh token (stub)',
+  })
   refresh(@Body('refreshToken') refreshToken: string) {
     return this.authService.refresh(refreshToken);
   }

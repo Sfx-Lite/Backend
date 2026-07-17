@@ -12,7 +12,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
   });
-  
+
   const config = app.get(ConfigService);
   const port = config.get<number>('port')!;
   const apiPrefix = config.get<string>('apiPrefix')!;
@@ -37,7 +37,7 @@ async function bootstrap() {
   });
 
   // ── Routing shape: /api/v1/... ──
-  app.setGlobalPrefix(`${apiPrefix}/v1`);
+  app.setGlobalPrefix(apiPrefix);
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: config.get<string>('apiVersion'),
@@ -62,7 +62,9 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   await app.listen(port, '0.0.0.0');
-  logger.log(`SFx Lite API running on http://localhost:${port}/${apiPrefix}/v1`);
+  logger.log(
+    `SFx Lite API running on http://localhost:${port}/${apiPrefix}/${config.get<string>('apiVersion')}`,
+  );
   if (!isProd) logger.log(`Swagger docs on http://localhost:${port}/docs`);
 }
 
