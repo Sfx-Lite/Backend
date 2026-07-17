@@ -32,6 +32,8 @@ import { Wallet } from './entities/wallet.entity';
 export class WalletsService {
   private readonly logger = new Logger(WalletsService.name);
   private static readonly INDEX_SEQUENCE = 'wallet_derivation_index_seq';
+  /** BIP-44 index reserved for the master hot wallet — never given to a user. */
+  private static readonly MASTER_INDEX = 0;
 
   /** Parsed once, then reused — parsing validates the phrase up front. */
   private cachedMnemonic: Mnemonic | null = null;
@@ -74,6 +76,15 @@ export class WalletsService {
       WalletsService.derivationPath(index),
     );
     return getAddress(node.address);
+  }
+
+  /**
+   * The master hot wallet address (BIP-44 index 0). Reserved — user deposit
+   * addresses start at index 1. The sweep and withdrawal jobs broadcast from
+   * this address; here we only expose its public address.
+   */
+  masterAddress(): string {
+    return this.deriveAddress(WalletsService.MASTER_INDEX);
   }
 
   /**
