@@ -31,7 +31,9 @@ export class AuthController {
   // POST /api/v1/auth/login
   @Post('login')
   @Public()
-  @ApiOperation({ summary: 'Exchange credentials for access + refresh tokens (stub)' })
+  @ApiOperation({
+    summary: 'Exchange credentials for access + refresh tokens (stub)',
+  })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
@@ -39,7 +41,9 @@ export class AuthController {
   // POST /api/v1/auth/refresh
   @Post('refresh')
   @Public()
-  @ApiOperation({ summary: 'Issue a new access token from a refresh token (stub)' })
+  @ApiOperation({
+    summary: 'Issue a new access token from a refresh token (stub)',
+  })
   refresh(@Body('refreshToken') refreshToken: string) {
     return this.authService.refresh(refreshToken);
   }

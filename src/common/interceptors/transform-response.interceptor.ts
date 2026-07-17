@@ -1,7 +1,16 @@
-import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import {
+  CallHandler,
+  ExecutionContext,
+  Injectable,
+  NestInterceptor,
+} from '@nestjs/common';
 import { map, Observable } from 'rxjs';
 
-import { StandardResponse, isStandardResponse, successResponse } from '../utils/response.util';
+import {
+  StandardResponse,
+  isStandardResponse,
+  successResponse,
+} from '../utils/response.util';
 
 /**
  * Uniform success envelope: { status, message, data }.
@@ -12,19 +21,22 @@ import { StandardResponse, isStandardResponse, successResponse } from '../utils/
  * legacy handlers still emit the standard shape.
  */
 @Injectable()
-export class TransformResponseInterceptor<T>
-  implements NestInterceptor<T, StandardResponse<T>>
-{
+export class TransformResponseInterceptor<T> implements NestInterceptor<
+  T,
+  StandardResponse<T>
+> {
   intercept(
     _context: ExecutionContext,
     next: CallHandler,
   ): Observable<StandardResponse<T>> {
-    return next.handle().pipe(
-      map((data) =>
-        isStandardResponse(data)
-          ? (data as StandardResponse<T>)
-          : successResponse(data as T),
-      ),
-    );
+    return next
+      .handle()
+      .pipe(
+        map((data) =>
+          isStandardResponse(data)
+            ? (data as StandardResponse<T>)
+            : successResponse(data as T),
+        ),
+      );
   }
 }

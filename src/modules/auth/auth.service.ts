@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { type StringValue } from 'ms';
 
 import { env } from '../../config/env';
 import { sendResponse } from '../../common/utils/response.util';
@@ -68,7 +69,7 @@ export class AuthService {
     // widens them to `string | undefined`, which breaks signAsync's overload
     // resolution).
     //
-    // `as any` on expiresIn: jsonwebtoken's newer types want a branded
+    // `as StringValue` on expiresIn: jsonwebtoken's newer types want a branded
     // `StringValue` (from the `ms` package) instead of a plain string,
     // even though a plain string like '15m' is exactly what it accepts
     // at runtime. This is a known typing friction point with
@@ -76,12 +77,12 @@ export class AuthService {
     // since the value always comes from our own validated env config.
     const accessToken = await this.jwt.signAsync(payload, {
       secret: env.jwt.accessSecret!,
-      expiresIn: env.jwt.accessExpiresIn as any,
+      expiresIn: env.jwt.accessExpiresIn as StringValue,
     });
 
     const refreshToken = await this.jwt.signAsync(payload, {
       secret: env.jwt.refreshSecret!,
-      expiresIn: env.jwt.refreshExpiresIn as any,
+      expiresIn: env.jwt.refreshExpiresIn as StringValue,
     });
 
     return { accessToken, refreshToken };

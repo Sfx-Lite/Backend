@@ -22,24 +22,32 @@ const setMnemonic = (phrase: string) => {
 };
 
 describe('WalletsService', () => {
-  let repo: jest.Mocked<Repository<Wallet>>;
-  let dataSource: jest.Mocked<DataSource>;
+  let repo: {
+    findOne: jest.Mock;
+    create: jest.Mock;
+    save: jest.Mock;
+  };
+  let dataSource: { transaction: jest.Mock };
   let service: WalletsService;
+
+  const makeService = () =>
+    new WalletsService(
+      repo as unknown as Repository<Wallet>,
+      dataSource as unknown as DataSource,
+    );
 
   beforeEach(() => {
     setMnemonic(TEST_MNEMONIC);
 
     repo = {
       findOne: jest.fn(),
-      create: jest.fn((v) => v as Wallet),
-      save: jest.fn(async (v) => v as Wallet),
-    } as unknown as jest.Mocked<Repository<Wallet>>;
+      create: jest.fn((value: Partial<Wallet>) => value as Wallet),
+      save: jest.fn((value: Wallet) => Promise.resolve(value)),
+    };
 
-    dataSource = {
-      transaction: jest.fn(),
-    } as unknown as jest.Mocked<DataSource>;
+    dataSource = { transaction: jest.fn() };
 
-    service = new WalletsService(repo, dataSource);
+    service = makeService();
   });
 
   describe('deriveAddress', () => {
@@ -55,7 +63,7 @@ describe('WalletsService', () => {
 
     it('throws when the master mnemonic is not configured', () => {
       setMnemonic('');
-      const unconfigured = new WalletsService(repo, dataSource);
+      const unconfigured = makeService();
       expect(() => unconfigured.deriveAddress(0)).toThrow(
         ServiceUnavailableException,
       );
@@ -68,7 +76,7 @@ describe('WalletsService', () => {
     const managerWith = (nextIndex: number): EntityManager =>
       ({
         getRepository: () => repo,
-        query: jest.fn(async () => [{ index: nextIndex }]),
+        query: jest.fn(() => Promise.resolve([{ index: nextIndex }])),
       }) as unknown as EntityManager;
 
     it('allocates the sequence index, derives the address, and persists', async () => {
@@ -97,8 +105,8 @@ describe('WalletsService', () => {
 
     it('opens its own transaction when no manager is passed', async () => {
       repo.findOne.mockResolvedValue(null);
-      dataSource.transaction.mockImplementation((cb: any) =>
-        cb(managerWith(0)),
+      dataSource.transaction.mockImplementation(
+        (cb: (em: EntityManager) => Promise<Wallet>) => cb(managerWith(0)),
       );
 
       const wallet = await service.createForUser('user-1');

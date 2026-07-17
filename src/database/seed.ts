@@ -33,7 +33,10 @@ async function seed() {
 
     logger.log('Database seeding completed.');
   } catch (error) {
-    logger.error('Seeding failed', error instanceof Error ? error.stack : String(error));
+    logger.error(
+      'Seeding failed',
+      error instanceof Error ? error.stack : String(error),
+    );
     process.exit(1);
   } finally {
     if (AppDataSource.isInitialized) {

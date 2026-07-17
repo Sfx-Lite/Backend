@@ -17,8 +17,8 @@ export class AnalyticsService {
       eventName: dto.eventName,
       sessionId: dto.sessionId,
       properties: dto.properties ?? {},
-      userId, 
-      actorType: 'user', 
+      userId,
+      actorType: 'user',
     });
 
     const saved = await this.eventsRepo.save(event);

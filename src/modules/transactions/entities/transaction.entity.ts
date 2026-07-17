@@ -19,7 +19,11 @@ export class Transaction extends BaseEntity {
   type!: TransactionType;
 
   @Index()
-  @Column({ type: 'enum', enum: TransactionStatus, default: TransactionStatus.PENDING })
+  @Column({
+    type: 'enum',
+    enum: TransactionStatus,
+    default: TransactionStatus.PENDING,
+  })
   status!: TransactionStatus;
 
   @Index()

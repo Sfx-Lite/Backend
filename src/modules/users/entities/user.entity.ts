@@ -40,7 +40,12 @@ export class User extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   country?: string | null;
 
-  @Column({ name: 'kyc_status', type: 'enum', enum: KycStatus, default: KycStatus.UNVERIFIED })
+  @Column({
+    name: 'kyc_status',
+    type: 'enum',
+    enum: KycStatus,
+    default: KycStatus.UNVERIFIED,
+  })
   kycStatus!: KycStatus;
 
   @Column({ name: 'suspended_at', type: 'timestamptz', nullable: true })

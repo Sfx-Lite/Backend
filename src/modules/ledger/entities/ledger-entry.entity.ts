@@ -33,6 +33,12 @@ export class LedgerEntry extends BaseEntity {
   @Column({ type: 'numeric', precision: 18, scale: 6, update: false })
   amount!: string;
 
-  @Column({ name: 'balance_after', type: 'numeric', precision: 18, scale: 6, update: false })
+  @Column({
+    name: 'balance_after',
+    type: 'numeric',
+    precision: 18,
+    scale: 6,
+    update: false,
+  })
   balanceAfter!: string;
 }

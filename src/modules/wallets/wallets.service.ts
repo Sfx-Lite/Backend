@@ -16,7 +16,7 @@ import { Wallet } from './entities/wallet.entity';
  * The HD wallet foundation for the escrow model. Every user is assigned ONE
  * deterministic deposit address, derived from the master mnemonic at a unique
  * BIP-44 index (`m/44'/60'/0'/0/{index}`). Users never hold keys — only the
- * master mnemonic (a secret, held by the CTO + Backend Lead) can spend, so the
+ * master mnemonic can spend, so the
  * later sweep/withdraw jobs move funds, not the user.
  *
  * Design notes:
@@ -84,7 +84,10 @@ export class WalletsService {
    * Pass a `manager` to enlist in a caller's transaction (e.g. signup);
    * otherwise this opens its own.
    */
-  async createForUser(userId: string, manager?: EntityManager): Promise<Wallet> {
+  async createForUser(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<Wallet> {
     const assign = async (em: EntityManager): Promise<Wallet> => {
       const repo = em.getRepository(Wallet);
 
@@ -93,9 +96,9 @@ export class WalletsService {
         return existing;
       }
 
-      const rows = (await em.query(
+      const rows = await em.query<Array<{ index: number }>>(
         `SELECT nextval('${WalletsService.INDEX_SEQUENCE}')::int AS index`,
-      )) as Array<{ index: number }>;
+      );
       const derivationIndex = Number(rows[0].index);
 
       const wallet = repo.create({

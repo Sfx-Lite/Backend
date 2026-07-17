@@ -67,4 +67,4 @@ async function bootstrap() {
   if (!isProd) logger.log(`Swagger docs on http://localhost:${port}/docs`);
 }
 
-bootstrap();
+void bootstrap();

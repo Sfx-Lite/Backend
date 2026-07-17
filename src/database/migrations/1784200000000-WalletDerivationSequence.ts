@@ -9,9 +9,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * Gaps (from rolled-back signups) are harmless — the index only needs to be
  * unique, not contiguous.
  */
-export class WalletDerivationSequence1784200000000
-  implements MigrationInterface
-{
+export class WalletDerivationSequence1784200000000 implements MigrationInterface {
   name = 'WalletDerivationSequence1784200000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

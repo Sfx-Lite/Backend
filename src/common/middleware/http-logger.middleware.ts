@@ -17,7 +17,7 @@ export class HttpLoggerMiddleware implements NestMiddleware {
 
     res.on('finish', () => {
       const ms = Number(process.hrtime.bigint() - start) / 1_000_000;
-      const requestId = req.headers[REQUEST_ID_HEADER];
+      const requestId = String(req.headers[REQUEST_ID_HEADER] ?? '');
       const line = `${method} ${originalUrl} ${res.statusCode} ${ms.toFixed(1)}ms ip=${ip} reqId=${requestId}`;
       if (res.statusCode >= 500) this.logger.error(line);
       else if (res.statusCode >= 400) this.logger.warn(line);

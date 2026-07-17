@@ -1,6 +1,11 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { env } from '../../config/env';
-import { createRedisClient } from './redis.factory';
+import { createRedisClient, RedisLike } from './redis.factory';
 
 interface MemEntry {
   value: unknown;
@@ -28,7 +33,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger('Cache');
   private readonly mem = new Map<string, MemEntry>();
 
-  private redis: any = null;
+  private redis: RedisLike | null = null;
   private redisReady = false;
   private sweeper?: ReturnType<typeof setInterval>;
 
@@ -65,7 +70,10 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
         this.logger.log('Redis cache connected.');
       });
       this.redis.on('error', (err: Error) => {
-        if (this.redisReady) this.logger.warn(`Redis error — falling back to in-memory cache: ${err.message}`);
+        if (this.redisReady)
+          this.logger.warn(
+            `Redis error — falling back to in-memory cache: ${err.message}`,
+          );
         this.redisReady = false;
       });
       this.redis.on('end', () => {
@@ -135,11 +143,16 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
    * Read-through helper: return the cached value, or run `fn`, cache it, return it.
    *   const rate = await cache.wrap('fx:usd-ngn', () => fetchRate(), 30);
    */
-  async wrap<T>(key: string, fn: () => Promise<T> | T, ttlSeconds?: number): Promise<T> {
+  async wrap<T>(
+    key: string,
+    fn: () => Promise<T> | T,
+    ttlSeconds?: number,
+  ): Promise<T> {
     const hit = await this.get<T>(key);
     if (hit !== undefined) return hit;
     const value = await fn();
-    if (value !== undefined && value !== null) await this.set(key, value, ttlSeconds);
+    if (value !== undefined && value !== null)
+      await this.set(key, value, ttlSeconds);
     return value;
   }
 
@@ -157,7 +170,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
   private memSet(key: string, value: unknown, ttl: number): void {
     // simple bound: drop the oldest inserted key when full
     if (this.mem.size >= this.maxItems) {
-      const oldest = this.mem.keys().next().value;
+      const oldest = this.mem.keys().next().value as string | undefined;
       if (oldest !== undefined) this.mem.delete(oldest);
     }
     this.mem.set(key, { value, expiresAt: Date.now() + ttl * 1000 });

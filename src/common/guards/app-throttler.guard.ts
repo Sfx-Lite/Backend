@@ -1,5 +1,17 @@
 import { ExecutionContext, Injectable } from '@nestjs/common';
-import { ThrottlerGuard, ThrottlerLimitDetail, ThrottlerRequest } from '@nestjs/throttler';
+import {
+  ThrottlerGuard,
+  ThrottlerLimitDetail,
+  ThrottlerRequest,
+} from '@nestjs/throttler';
+import { Response } from 'express';
+
+/** The request fields the throttler reads to pick a tracking key. */
+interface ThrottledRequest {
+  user?: { id?: string; sub?: string };
+  ips?: string[];
+  ip?: string;
+}
 
 /**
  * Dual-tracker rate limiting:
@@ -12,16 +24,19 @@ import { ThrottlerGuard, ThrottlerLimitDetail, ThrottlerRequest } from '@nestjs/
  */
 @Injectable()
 export class AppThrottlerGuard extends ThrottlerGuard {
-  protected async getTracker(req: Record<string, any>): Promise<string> {
-    const userId = req.user?.id ?? req.user?.sub;
-    if (userId) return `user:${userId}`;
-    const ip = req.ips?.length ? req.ips[0] : req.ip;
-    return `ip:${ip}`;
+  protected getTracker(req: Record<string, unknown>): Promise<string> {
+    const r = req as ThrottledRequest;
+    const userId = r.user?.id ?? r.user?.sub;
+    if (userId) return Promise.resolve(`user:${userId}`);
+    const ip = (r.ips?.length ? r.ips[0] : r.ip) ?? 'unknown';
+    return Promise.resolve(`ip:${ip}`);
   }
 
-  protected async handleRequest(requestProps: ThrottlerRequest): Promise<boolean> {
+  protected async handleRequest(
+    requestProps: ThrottlerRequest,
+  ): Promise<boolean> {
     const { context, throttler } = requestProps;
-    const req = context.switchToHttp().getRequest();
+    const req = context.switchToHttp().getRequest<ThrottledRequest>();
     const isAuthenticated = Boolean(req.user?.id ?? req.user?.sub);
 
     // Named throttlers let anonymous and authenticated traffic carry
@@ -36,8 +51,7 @@ export class AppThrottlerGuard extends ThrottlerGuard {
     context: ExecutionContext,
     throttlerLimitDetail: ThrottlerLimitDetail,
   ): Promise<void> {
-    void throttlerLimitDetail;
-    const res = context.switchToHttp().getResponse();
+    const res = context.switchToHttp().getResponse<Response>();
     res.header('Retry-After', '60');
     await super.throwThrottlingException(context, throttlerLimitDetail);
   }
