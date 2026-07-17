@@ -1,8 +1,9 @@
 import {
   Injectable,
   ConflictException,
+  ForbiddenException,
   Logger,
-  NotImplementedException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -13,9 +14,21 @@ import { type StringValue } from 'ms';
 import { env } from '../../config/env';
 import { sendResponse } from '../../common/utils/response.util';
 import { User } from '../users/entities/user.entity';
+import { UserRole } from '../users/enums/user-role.enum';
 import { WalletsService } from '../wallets/wallets.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+
+/**
+ * Claims carried in both the access and refresh tokens. Kept minimal — the
+ * refresh flow re-reads the user, so nothing here is trusted as authoritative
+ * beyond `sub`.
+ */
+interface JwtPayload {
+  sub: string;
+  email: string;
+  role: UserRole;
+}
 
 /**
  * AuthService — Squad A
@@ -61,7 +74,11 @@ export class AuthService {
    * defeats the purpose of having two secrets.
    */
   private async issueTokens(user: User) {
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    };
 
     // env.jwt.* is the single source of truth (see src/config/env.ts).
     // accessSecret / refreshSecret are Joi-required at boot, so they're always
@@ -133,22 +150,76 @@ export class AuthService {
     );
   }
 
-  login(dto: LoginDto) {
-    void dto;
-    // 1. look up user by email
-    // 2. compare password hash
-    // 3. issue access + refresh tokens
-    throw new NotImplementedException(
-      'AuthService.login — Squad A to implement',
+  /**
+   * Email + password login.
+   *  1. Look up the user by email.
+   *  2. Verify the password against the stored bcrypt hash.
+   *  3. Issue an access + refresh token pair.
+   *
+   * The failure message is deliberately identical for "no such user",
+   * "Google-only account" and "wrong password" so the endpoint can't be used
+   * to enumerate which emails are registered.
+   */
+  async login(dto: LoginDto) {
+    const user = await this.users.findOne({ where: { email: dto.email } });
+
+    // Google-only accounts have no passwordHash and cannot log in by password.
+    if (!user || !user.passwordHash) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    const passwordMatches = await bcrypt.compare(
+      dto.password,
+      user.passwordHash,
+    );
+    if (!passwordMatches) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    if (user.suspendedAt) {
+      throw new ForbiddenException('Account suspended');
+    }
+
+    const tokens = await this.issueTokens(user);
+
+    return sendResponse(
+      {
+        ...tokens,
+        user: this.toPublicUser(user),
+      },
+      'Login successful',
     );
   }
 
-  refresh(refreshToken: string) {
-    void refreshToken;
-    // 1. verify refresh token signature + expiry
-    // 2. issue a fresh access token
-    throw new NotImplementedException(
-      'AuthService.refresh — Squad A to implement',
-    );
+  /**
+   * Exchange a valid refresh token for a fresh token pair (rotation).
+   *  1. Verify the refresh token's signature + expiry against the REFRESH
+   *     secret (an access token presented here will fail — different secret).
+   *  2. Re-load the user so the new tokens reflect current email/role and so a
+   *     deleted or suspended account can't refresh its way back in.
+   *  3. Issue and return a new access + refresh pair.
+   */
+  async refresh(refreshToken: string) {
+    let payload: JwtPayload;
+    try {
+      payload = await this.jwt.verifyAsync<JwtPayload>(refreshToken, {
+        secret: env.jwt.refreshSecret!,
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    const user = await this.users.findOne({ where: { id: payload.sub } });
+    if (!user) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    if (user.suspendedAt) {
+      throw new ForbiddenException('Account suspended');
+    }
+
+    const tokens = await this.issueTokens(user);
+
+    return sendResponse(tokens, 'Token refreshed');
   }
 }
