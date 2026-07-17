@@ -3,6 +3,7 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { JwtModule } from '@nestjs/jwt';
 
 import { env } from './config/env';
 import configuration from './config/configuration';
@@ -15,6 +16,7 @@ import { WalletsModule } from './modules/wallets/wallets.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { HttpLoggerMiddleware } from './common/middleware/http-logger.middleware';
 import { AppThrottlerGuard } from './common/guards/app-throttler.guard';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformResponseInterceptor } from './common/interceptors/transform-response.interceptor';
 import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor';
@@ -50,6 +52,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
       ],
     }),
 
+    JwtModule.register({ secret: env.jwt.accessSecret }),
     ScheduleModule.forRoot(), // deposit watcher / sweep / reconciliation jobs (Squad B)
     CacheModule, // global cache — Redis if REDIS_URL is set & reachable, else in-memory
     DatabaseModule,
@@ -65,6 +68,8 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     AnalyticsModule,
   ],
   providers: [
+    // Order matters: authenticate first so req.user exists for the throttler.
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: AppThrottlerGuard },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: TransformResponseInterceptor },
