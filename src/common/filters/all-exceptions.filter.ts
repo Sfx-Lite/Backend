@@ -21,10 +21,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
-    const requestId = request.headers[REQUEST_ID_HEADER];
+    const requestId = String(request.headers[REQUEST_ID_HEADER] ?? '');
 
     const isHttp = exception instanceof HttpException;
-    const status = isHttp ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
+    const status = isHttp
+      ? exception.getStatus()
+      : HttpStatus.INTERNAL_SERVER_ERROR;
 
     let message: string | string[] = 'Internal server error';
     let error = 'InternalServerError';
@@ -35,7 +37,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = body;
         error = exception.name;
       } else {
-        const b = body as Record<string, any>;
+        const b = body as { message?: string | string[]; error?: string };
         message = b.message ?? exception.message;
         error = b.error ?? exception.name;
       }

@@ -18,22 +18,24 @@ import { HealthService } from './health.service';
 export class HealthController {
   constructor(private readonly healthService: HealthService) {}
 
-  // GET /api/v1/health  → deep check (DB + memory)
+  // GET /api/v1/health  → fast liveness, no I/O
   @Get()
-  @Public()
-  @SkipThrottle()
-  @HealthCheck()
-  @ApiOperation({ summary: 'Liveness + DB + memory health (used by Render + uptime pings)' })
-  check() {
-    return this.healthService.check();
-  }
-
-  // GET /api/v1/health/live  → fast liveness, no I/O
-  @Get('live')
   @Public()
   @SkipThrottle()
   @ApiOperation({ summary: 'Fast process liveness with no I/O' })
   live() {
     return this.healthService.liveness();
+  }
+
+  // GET /api/v1/health/ready  → deep check (DB + memory)
+  @Get('ready')
+  @Public()
+  @SkipThrottle()
+  @HealthCheck()
+  @ApiOperation({
+    summary: 'Liveness + DB + memory health (used by Render + uptime pings)',
+  })
+  ready() {
+    return this.healthService.readiness();
   }
 }

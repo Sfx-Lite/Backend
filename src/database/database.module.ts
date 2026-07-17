@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+
+import { env } from '../config/env';
 
 /**
  * Runtime DB connection (Neon Postgres in staging/prod).
@@ -12,19 +13,15 @@ import { TypeOrmModule } from '@nestjs/typeorm';
  */
 @Module({
   imports: [
-    TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres' as const,
-        url: config.get<string>('database.url'),
-        ssl: config.get<boolean>('database.ssl') ? { rejectUnauthorized: false } : false,
-        autoLoadEntities: true,
-        synchronize: false,
-        logging: config.get<boolean>('database.logging'),
-        migrations: [__dirname + '/migrations/*{.ts,.js}'],
-        migrationsRun: false,
-      }),
+    TypeOrmModule.forRoot({
+      type: 'postgres' as const,
+      url: env.database.url,
+      ssl: env.database.ssl ? { rejectUnauthorized: false } : false,
+      autoLoadEntities: true,
+      synchronize: false,
+      logging: env.database.logging,
+      migrations: [__dirname + '/migrations/*{.ts,.js}'],
+      migrationsRun: false,
     }),
   ],
 })

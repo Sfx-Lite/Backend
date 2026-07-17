@@ -6,7 +6,9 @@ import * as Joi from 'joi';
  * are optional here and enforced by the modules that consume them.
  */
 export const envValidationSchema = Joi.object({
-  NODE_ENV: Joi.string().valid('development', 'test', 'staging', 'production').default('development'),
+  NODE_ENV: Joi.string()
+    .valid('development', 'test', 'staging', 'production')
+    .default('development'),
   PORT: Joi.number().port().default(4000),
   API_PREFIX: Joi.string().default('api'),
   API_VERSION: Joi.string().default('1'),
@@ -17,7 +19,11 @@ export const envValidationSchema = Joi.object({
   THROTTLE_LIMIT_IP: Joi.number().min(1).default(30),
   THROTTLE_LIMIT_USER: Joi.number().min(1).default(100),
 
-  DATABASE_URL: Joi.string().uri({ scheme: ['postgres', 'postgresql'] }).required(),
+  DATABASE_URL: Joi.string()
+    .uri({ scheme: ['postgres', 'postgresql'] })
+    .trim()
+    .min(1)
+    .required(),
   DATABASE_SSL: Joi.boolean().truthy('true').falsy('false').default(false),
   DATABASE_LOGGING: Joi.boolean().truthy('true').falsy('false').default(false),
 

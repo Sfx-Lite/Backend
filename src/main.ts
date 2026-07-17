@@ -1,10 +1,10 @@
 import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import compression from 'compression';
 import { AppModule } from './app.module';
+import { env } from './config/env';
 import { setupSwagger } from './config/swagger.config';
 
 async function bootstrap() {
@@ -12,11 +12,10 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
   });
-  
-  const config = app.get(ConfigService);
-  const port = config.get<number>('port')!;
-  const apiPrefix = config.get<string>('apiPrefix')!;
-  const isProd = config.get<string>('nodeEnv') === 'production';
+
+  const port = env.port;
+  const apiPrefix = env.apiPrefix;
+  const isProd = env.nodeEnv === 'production';
 
   // Behind Render's proxy — makes req.ips carry the real client IP
   // so rate limiting tracks users, not the load balancer.
@@ -27,7 +26,7 @@ async function bootstrap() {
   app.use(compression());
 
   // ── CORS — array-driven from CORS_ORIGINS ──
-  const origins = config.get<string[]>('cors.origins')!;
+  const origins = env.cors.origins;
   app.enableCors({
     origin: origins.length > 0 ? origins : false,
     credentials: true,
@@ -37,18 +36,18 @@ async function bootstrap() {
   });
 
   // ── Routing shape: /api/v1/... ──
-  app.setGlobalPrefix(`${apiPrefix}/v1`);
+  app.setGlobalPrefix(`${apiPrefix}`);
   app.enableVersioning({
     type: VersioningType.URI,
-    defaultVersion: config.get<string>('apiVersion'),
+    defaultVersion: env.apiVersion,
   });
 
   // ── DTO validation everywhere ──
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,            // strip unknown properties
+      whitelist: true, // strip unknown properties
       forbidNonWhitelisted: true, // ...and reject them loudly
-      transform: true,            // auto-cast params to DTO types
+      transform: true, // auto-cast params to DTO types
       transformOptions: { enableImplicitConversion: true },
     }),
   );
@@ -62,8 +61,10 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   await app.listen(port, '0.0.0.0');
-  logger.log(`SFx Lite API running on http://localhost:${port}/${apiPrefix}/v1`);
+  logger.log(
+    `SFx Lite API running on http://localhost:${port}/${apiPrefix}/v1`,
+  );
   if (!isProd) logger.log(`Swagger docs on http://localhost:${port}/docs`);
 }
 
-bootstrap();
+void bootstrap();

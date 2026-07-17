@@ -22,7 +22,11 @@ export class KycSubmission extends BaseEntity {
   @Column({ name: 'selfie_url' })
   selfieUrl!: string;
 
-  @Column({ type: 'enum', enum: KycSubmissionStatus, default: KycSubmissionStatus.PENDING })
+  @Column({
+    type: 'enum',
+    enum: KycSubmissionStatus,
+    default: KycSubmissionStatus.PENDING,
+  })
   status!: KycSubmissionStatus;
 
   @Column({ type: 'varchar', nullable: true })
