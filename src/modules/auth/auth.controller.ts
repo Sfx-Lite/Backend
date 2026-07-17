@@ -1,7 +1,8 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { AuthService } from './auth.service';
+import { CheckUsernameDto } from './dto/check-username.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -22,10 +23,25 @@ import { RegisterDto } from './dto/register.dto';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  // GET /api/v1/auth/username-available?username=johndoe
+  @Get('username-available')
+  @Public()
+  @ApiOperation({
+    summary: 'Check if a username is still available',
+    description:
+      'Read-only signup helper for live "username taken" feedback. Returns ' +
+      '`{ username, available }`.',
+  })
+  checkUsername(@Query() dto: CheckUsernameDto) {
+    return this.authService.checkUsername(dto.username);
+  }
+
   // POST /api/v1/auth/register
   @Post('register')
   @Public()
-  @ApiOperation({ summary: 'Register a new user' })
+  @ApiOperation({
+    summary: 'Register a new user and issue an access + refresh token pair',
+  })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
@@ -33,7 +49,10 @@ export class AuthController {
   // POST /api/v1/auth/login
   @Post('login')
   @Public()
-  @ApiOperation({ summary: 'Exchange credentials for access + refresh tokens' })
+  @ApiOperation({
+    summary:
+      'Log in with email OR username + password, and issue an access + refresh token pair',
+  })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }

@@ -6,7 +6,7 @@ import { sendResponse } from '../../common/utils/response.util';
 import { WalletsService } from './wallets.service';
 
 /**
- * WalletsController — Squad B
+ * WalletsController —
  * ───────────────────────────
  * Thin HTTP surface for a user's deposit address. Business logic (derivation,
  * index allocation) lives entirely in WalletsService.
@@ -21,12 +21,12 @@ import { WalletsService } from './wallets.service';
 export class WalletsController {
   constructor(private readonly wallets: WalletsService) {}
 
-  // GET /api/v1/wallets/me
-  @Get('me')
+  // GET /api/v1/wallets/address
+  @Get('address')
   @ApiOperation({
     summary: "Get the current user's USDC deposit address (Polygon Amoy)",
   })
-  async me(@CurrentUser('sub') userId: string) {
+  async address(@CurrentUser('sub') userId: string) {
     if (!userId) {
       throw new UnauthorizedException();
     }
