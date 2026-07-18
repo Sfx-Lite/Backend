@@ -1,4 +1,9 @@
-import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import {
+  CallHandler,
+  ExecutionContext,
+  Injectable,
+  NestInterceptor,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable, of, tap } from 'rxjs';
 import { CacheService } from './cache.service';
@@ -15,6 +20,13 @@ import { CACHE_KEY_METADATA, CACHE_TTL_METADATA } from './cache.decorators';
  *   fresh on every hit by TransformResponseInterceptor.
  * - If the cache is down, get()/set() degrade to misses — requests still serve.
  */
+/** The request fields this interceptor reads. */
+interface CacheableRequest {
+  method: string;
+  originalUrl: string;
+  user?: { id?: string; sub?: string };
+}
+
 @Injectable()
 export class ResponseCacheInterceptor implements NestInterceptor {
   constructor(
@@ -22,14 +34,20 @@ export class ResponseCacheInterceptor implements NestInterceptor {
     private readonly reflector: Reflector,
   ) {}
 
-  async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<unknown>> {
+  async intercept(
+    context: ExecutionContext,
+    next: CallHandler,
+  ): Promise<Observable<unknown>> {
     const handler = context.getHandler();
-    const ttlMeta = this.reflector.get<number | boolean>(CACHE_TTL_METADATA, handler);
+    const ttlMeta = this.reflector.get<number | boolean>(
+      CACHE_TTL_METADATA,
+      handler,
+    );
 
     // Not marked @Cacheable → do nothing.
     if (ttlMeta === undefined) return next.handle();
 
-    const req = context.switchToHttp().getRequest();
+    const req = context.switchToHttp().getRequest<CacheableRequest>();
     if (req.method !== 'GET') return next.handle();
 
     const customKey = this.reflector.get<string>(CACHE_KEY_METADATA, handler);

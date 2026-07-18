@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import {
   HealthCheckResult,
   HealthCheckService,
   MemoryHealthIndicator,
   TypeOrmHealthIndicator,
 } from '@nestjs/terminus';
+
+import { env } from '../../config/env';
+import { sendResponse } from '../../common/utils/response.util';
 
 /**
  * HealthService
@@ -23,19 +25,7 @@ export class HealthService {
     private readonly health: HealthCheckService,
     private readonly db: TypeOrmHealthIndicator,
     private readonly memory: MemoryHealthIndicator,
-    private readonly config: ConfigService,
   ) {}
-
-  /**
-   * Deep check — pings Postgres and inspects heap usage.
-   * Used by Render's health probe and external uptime pings.
-   */
-  check(): Promise<HealthCheckResult> {
-    return this.health.check([
-      () => this.db.pingCheck('postgres', { timeout: 3000 }),
-      () => this.memory.checkHeap('memory_heap', 512 * 1024 * 1024),
-    ]);
-  }
 
   /**
    * Lightweight liveness payload — no I/O.
@@ -43,13 +33,26 @@ export class HealthService {
    * for how a service returns a plain object the interceptor will wrap.
    */
   liveness() {
-    return {
-      status: 'ok',
-      service: 'sfx-lite-api',
-      env: this.config.get<string>('nodeEnv'),
-      version: this.config.get<string>('apiVersion'),
-      uptimeSeconds: Math.round(process.uptime()),
-      timestamp: new Date().toISOString(),
-    };
+    return sendResponse(
+      {
+        status: 'ok',
+        service: 'sfx-lite-api',
+        env: env.nodeEnv,
+        version: env.apiVersion,
+        uptimeSeconds: Math.round(process.uptime()),
+        timestamp: new Date().toISOString(),
+      },
+      'Service is live',
+    );
+  }
+
+  /**
+   * Deep check — pings Postgres and inspects heap usage.
+   * Used by Render's health probe and external uptime pings.
+   */
+  readiness(): Promise<HealthCheckResult> {
+    return this.health.check([
+      () => this.db.pingCheck('postgres', { timeout: 3000 }),
+    ]);
   }
 }

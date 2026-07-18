@@ -33,6 +33,12 @@ export class Wallet extends BaseEntity {
   @Column({ length: 10, default: 'USDC' })
   asset!: string;
 
-  @Column({ name: 'swept_balance', type: 'numeric', precision: 18, scale: 6, default: 0 })
+  @Column({
+    name: 'swept_balance',
+    type: 'numeric',
+    precision: 18,
+    scale: 6,
+    default: 0,
+  })
   sweptBalance!: string;
 }

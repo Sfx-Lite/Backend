@@ -1,24 +1,30 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { JwtModule } from '@nestjs/jwt';
 
-import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { env } from './config/env';
+import configuration from './config/configuration';
+import { envValidationSchema } from './config/env.validation';
+import { DatabaseModule } from './database/database.module';
+import { HealthModule } from './modules/health/health.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { WalletsModule } from './modules/wallets/wallets.module';
+
+import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
+import { HttpLoggerMiddleware } from './common/middleware/http-logger.middleware';
 import { AppThrottlerGuard } from './common/guards/app-throttler.guard';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformResponseInterceptor } from './common/interceptors/transform-response.interceptor';
 import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor';
 import { CacheModule } from './common/cache/cache.module';
 import { ResponseCacheInterceptor } from './common/cache/response-cache.interceptor';
 import { THROTTLER_IP, THROTTLER_USER } from './common/constants';
-import { HttpLoggerMiddleware } from './common/middleware/http-logger.middleware';
-import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
-import configuration from './config/configuration';
-import { envValidationSchema } from './config/env.validation';
-import { DatabaseModule } from './database/database.module';
-import { AuthModule } from './modules/auth/auth.module';
-import { HealthModule } from './modules/health/health.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 @Module({
   imports: [
@@ -26,57 +32,51 @@ import { HealthModule } from './modules/health/health.module';
       isGlobal: true,
       load: [configuration],
       validationSchema: envValidationSchema,
-      validationOptions: {
-        abortEarly: false,
-        allowUnknown: true,
-      },
+      validationOptions: { abortEarly: false, allowUnknown: true },
     }),
 
-    ThrottlerModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        throttlers: [
-          {
-            name: THROTTLER_IP,
-            ttl: config.get<number>('throttle.ttlSeconds')! * 1000,
-            limit: config.get<number>('throttle.limitIp')!,
-          },
-          {
-            name: THROTTLER_USER,
-            ttl: config.get<number>('throttle.ttlSeconds')! * 1000,
-            limit: config.get<number>('throttle.limitUser')!,
-          },
-        ],
-      }),
+    // Dual-budget rate limiting — resolved by AppThrottlerGuard:
+    // 'ip' applies to anonymous traffic, 'user' to authenticated traffic.
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          name: THROTTLER_IP,
+          ttl: env.throttle.ttlSeconds * 1000,
+          limit: env.throttle.limitIp,
+        },
+        {
+          name: THROTTLER_USER,
+          ttl: env.throttle.ttlSeconds * 1000,
+          limit: env.throttle.limitUser,
+        },
+      ],
     }),
 
-    ScheduleModule.forRoot(),
-    CacheModule,
+    JwtModule.register({ secret: env.jwt.accessSecret }),
+    ScheduleModule.forRoot(), // deposit watcher / sweep / reconciliation jobs (Squad B)
+    CacheModule, // global cache — Redis if REDIS_URL is set & reachable, else in-memory
     DatabaseModule,
     HealthModule,
-    AuthModule,
+
+    // ── Feature modules land here as squads ship them ──
+    AuthModule, // Squad A
+    // UsersModule, KycModule, NotificationsModule   (Squad A)
+    WalletsModule, // Squad B — HD deposit addresses
+    // DepositsModule, SweepsModule, WithdrawalsModule, ReconciliationModule (Squad B)
+    // LedgerModule, TransfersModule, BeneficiariesModule, HistoryModule, FxModule (Squad C)
+    // ChatModule, AdminModule (Squad D)
+    AnalyticsModule,
   ],
   providers: [
-    {
-      provide: APP_GUARD,
-      useClass: AppThrottlerGuard,
-    },
-    {
-      provide: APP_FILTER,
-      useClass: AllExceptionsFilter,
-    },
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: TransformResponseInterceptor,
-    },
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: TimeoutInterceptor,
-    },
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: ResponseCacheInterceptor,
-    },
+    // Order matters: authenticate first so req.user exists for the throttler.
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: AppThrottlerGuard },
+    { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    { provide: APP_INTERCEPTOR, useClass: TransformResponseInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: TimeoutInterceptor },
+    // Innermost interceptor: caches @Cacheable() GET routes on the raw
+    // controller return, so the envelope is re-applied fresh on cache hits.
+    { provide: APP_INTERCEPTOR, useClass: ResponseCacheInterceptor },
   ],
 })
 export class AppModule implements NestModule {
