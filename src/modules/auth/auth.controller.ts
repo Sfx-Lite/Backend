@@ -13,7 +13,7 @@ import { GoogleProfile } from './interfaces/google-profile.interface';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
   @Get('google')
   @Public()
@@ -40,7 +40,9 @@ export class AuthController {
 
   @Post('login')
   @Public()
-  @ApiOperation({ summary: 'Exchange credentials for access and refresh tokens' })
+  @ApiOperation({
+    summary: 'Exchange credentials for access and refresh tokens',
+  })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }

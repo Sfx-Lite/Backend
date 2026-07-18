@@ -46,7 +46,7 @@ export class AuthService {
     private readonly users: Repository<User>,
     private readonly jwt: JwtService,
     private readonly wallets: WalletsService,
-  ) { }
+  ) {}
 
   /**
    * Assign the user's on-chain deposit address at signup.
