@@ -117,6 +117,27 @@ export class AuthService {
     };
   }
 
+  /**
+   * Check whether a username is already taken, WITHOUT attempting to register.
+   * Lets the frontend give live "username available / taken" feedback on the
+   * signup form. This is a read-only convenience endpoint — the authoritative
+   * uniqueness check still runs inside `register()` (below), which also guards
+   * against a race between this check and the actual signup.
+   */
+  async checkUsername(username: string) {
+    const existingUser = await this.users.findOne({
+      where: { username },
+      select: { id: true },
+    });
+
+    const available = !existingUser;
+
+    return sendResponse(
+      { username, available },
+      available ? 'Username is available' : 'Username is already taken',
+    );
+  }
+
   async register(dto: RegisterDto) {
     const existingUser = await this.users.findOne({
       where: [{ email: dto.email }, { username: dto.username }],
@@ -134,6 +155,7 @@ export class AuthService {
       passwordHash,
       firstName: dto.firstName,
       lastName: dto.lastName,
+      country: dto.country,
     });
 
     await this.users.save(user);
@@ -152,17 +174,22 @@ export class AuthService {
   }
 
   /**
-   * Email + password login.
-   *  1. Look up the user by email.
+   * (email OR username) + password login.
+   *  1. Look up the user by email OR username (same field accepts either).
    *  2. Verify the password against the stored bcrypt hash.
    *  3. Issue an access + refresh token pair.
    *
    * The failure message is deliberately identical for "no such user",
    * "Google-only account" and "wrong password" so the endpoint can't be used
-   * to enumerate which emails are registered.
+   * to enumerate which emails or usernames are registered.
    */
   async login(dto: LoginDto) {
-    const user = await this.users.findOne({ where: { email: dto.email } });
+    const user = await this.users.findOne({
+      where: [
+        { email: dto.emailOrUsername },
+        { username: dto.emailOrUsername },
+      ],
+    });
 
     // Google-only accounts have no passwordHash and cannot log in by password.
     if (!user || !user.passwordHash) {
