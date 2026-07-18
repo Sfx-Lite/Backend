@@ -23,6 +23,10 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   ): GoogleProfile {
     const email = profile.emails?.[0]?.value;
 
+    if (!email) {
+      throw new Error('Google profile did not provide an email address');
+    }
+
     return {
       googleId: profile.id,
       email,
