@@ -31,6 +31,12 @@ export class User extends BaseEntity {
   @Column({ name: 'pin_hash', type: 'varchar', nullable: true })
   pinHash?: string | null;
 
+  @Column({ name: 'pin_failed_attempts', type: 'int', default: 0 })
+  pinFailedAttempts!: number;
+
+  @Column({ name: 'pin_locked_until', type: 'timestamptz', nullable: true })
+  pinLockedUntil?: Date | null;
+
   @Column({ name: 'first_name', type: 'varchar', nullable: true })
   firstName?: string | null;
 

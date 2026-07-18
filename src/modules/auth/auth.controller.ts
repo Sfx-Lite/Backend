@@ -10,19 +10,34 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { AuthService } from './auth.service';
 import { CheckUsernameDto } from './dto/check-username.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { RegisterDto } from './dto/register.dto';
+import { SetPinDto } from './dto/set-pin.dto';
+import { VerifyPinDto } from './dto/verify-pin.dto';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { GoogleProfile } from './interfaces/google-profile.interface';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
+
+  @Post('pin')
+  @ApiOperation({ summary: 'Set transaction PIN' })
+  setPin(@CurrentUser('sub') userId: string, @Body() dto: SetPinDto) {
+    return this.authService.setPin(userId, dto.pin);
+  }
+
+  @Post('pin/verify')
+  @ApiOperation({ summary: 'Verify transaction PIN' })
+  verifyPin(@CurrentUser('sub') userId: string, @Body() dto: VerifyPinDto) {
+    return this.authService.verifyPin(userId, dto.pin);
+  }
 
   @Get('google')
   @Public()

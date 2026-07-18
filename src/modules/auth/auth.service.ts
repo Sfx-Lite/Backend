@@ -250,6 +250,7 @@ export class AuthService {
 
     return sendResponse(tokens, 'Token refreshed');
   }
+
   async googleLogin(profile: GoogleProfile) {
     if (!profile.email || !profile.googleId) {
       throw new UnauthorizedException(
@@ -357,5 +358,105 @@ export class AuthService {
     }
 
     throw new ConflictException('Could not generate a unique username');
+  }
+
+  async setPin(userId: string, pin: string) {
+    const user = await this.users.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (user.suspendedAt) {
+      throw new ForbiddenException('Account suspended');
+    }
+
+    if (user.pinHash) {
+      throw new ConflictException('Transaction PIN has already been set');
+    }
+
+    user.pinHash = await bcrypt.hash(pin, 12);
+
+    await this.users.save(user);
+
+    return sendResponse(null, 'Transaction PIN set successfully');
+  }
+
+  async verifyPin(userId: string, pin: string) {
+    const maxAttempts = 5;
+    const lockoutDurationMs = 15 * 60 * 1000;
+
+    const user = await this.users.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (user.suspendedAt) {
+      throw new ForbiddenException('Account suspended');
+    }
+
+    if (!user.pinHash) {
+      throw new ForbiddenException('Transaction PIN has not been set');
+    }
+
+    const now = new Date();
+
+    if (user.pinLockedUntil && user.pinLockedUntil.getTime() > now.getTime()) {
+      const remainingSeconds = Math.ceil(
+        (user.pinLockedUntil.getTime() - now.getTime()) / 1000,
+      );
+
+      throw new ForbiddenException(
+        `PIN verification is temporarily locked. Try again in ${remainingSeconds} seconds`,
+      );
+    }
+
+    // Reset an expired lockout before checking the PIN.
+    if (user.pinLockedUntil && user.pinLockedUntil.getTime() <= now.getTime()) {
+      user.pinLockedUntil = null;
+      user.pinFailedAttempts = 0;
+    }
+
+    const pinMatches = await bcrypt.compare(pin, user.pinHash);
+
+    if (!pinMatches) {
+      user.pinFailedAttempts = (user.pinFailedAttempts ?? 0) + 1;
+
+      if (user.pinFailedAttempts >= maxAttempts) {
+        user.pinLockedUntil = new Date(now.getTime() + lockoutDurationMs);
+        user.pinFailedAttempts = 0;
+
+        await this.users.save(user);
+
+        throw new ForbiddenException(
+          'Too many incorrect PIN attempts. Try again in 15 minutes',
+        );
+      }
+
+      const remainingAttempts = maxAttempts - user.pinFailedAttempts;
+
+      await this.users.save(user);
+
+      throw new UnauthorizedException(
+        `Invalid PIN. ${remainingAttempts} attempt${
+          remainingAttempts === 1 ? '' : 's'
+        } remaining`,
+      );
+    }
+
+    user.pinFailedAttempts = 0;
+    user.pinLockedUntil = null;
+
+    await this.users.save(user);
+
+    return sendResponse(
+      { verified: true },
+      'Transaction PIN verified successfully',
+    );
   }
 }
