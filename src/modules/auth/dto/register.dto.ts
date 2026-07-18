@@ -31,6 +31,11 @@ export class RegisterDto {
   @MinLength(2)
   lastName!: string;
 
+  @ApiProperty({ example: 'Nigeria' })
+  @IsString()
+  @MinLength(2)
+  country!: string;
+
   @ApiProperty({ example: 'super-secret', minLength: 8 })
   @IsString()
   @MinLength(8)
