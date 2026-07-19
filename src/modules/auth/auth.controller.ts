@@ -1,15 +1,12 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
   ApiOkResponse,
   ApiOperation,
-  ApiQuery,
-  ApiResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import type { Request } from 'express';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -20,8 +17,6 @@ import { RefreshDto } from './dto/refresh.dto';
 import { RegisterDto } from './dto/register.dto';
 import { SetPinDto } from './dto/set-pin.dto';
 import { VerifyPinDto } from './dto/verify-pin.dto';
-import { GoogleAuthGuard } from './guards/google-auth.guard';
-import { GoogleProfile } from './interfaces/google-profile.interface';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -63,82 +58,13 @@ export class AuthController {
   }
 
   /**
-   * Step 1 of the Google OAuth2 authorization-code flow.
-   *
-   * This is a BROWSER endpoint, not a JSON/API call — the GoogleAuthGuard
-   * (passport-google-oauth20) intercepts the request and issues a 302 redirect
-   * to Google's consent screen, so the handler body never runs. Because it ends
-   * in a redirect, it can't be exercised from Swagger's "Try it out"; open it in
-   * a browser instead (or link the button to it from the frontend).
-   */
-  @Get('google')
-  @Public()
-  @UseGuards(GoogleAuthGuard)
-  @ApiOperation({
-    summary: 'Start Google OAuth login (browser redirect)',
-    description:
-      "Redirects the browser to Google's consent screen. This is the first leg " +
-      'of the standard OAuth2 authorization-code flow; there is no request body ' +
-      'and no JSON response. After the user consents, Google redirects back to ' +
-      'GET /auth/google/callback. Not callable from Swagger — open in a browser.',
-  })
-  @ApiResponse({
-    status: 302,
-    description: "Redirect to Google's OAuth consent screen.",
-  })
-  googleAuth() {
-    return;
-  }
-
-  /**
-   * Step 2 of the Google OAuth2 authorization-code flow — the callback GOOGLE
-   * redirects back to (configured as GOOGLE_CALLBACK_URL). It is NOT waiting on
-   * any third party other than Google itself: Google appends `?code=...&state=...`,
-   * the GoogleAuthGuard exchanges that code for the user's profile (via
-   * GoogleStrategy.validate, which populates req.user), and we then mint our own
-   * access + refresh tokens. The `code`/`state` params are supplied by Google, so
-   * this endpoint also can't be driven manually from Swagger's "Try it out".
-   */
-  @Get('google/callback')
-  @Public()
-  @UseGuards(GoogleAuthGuard)
-  @ApiOperation({
-    summary: 'Google OAuth callback (browser redirect target)',
-    description:
-      'The URL Google redirects back to after consent. Passport exchanges the ' +
-      '`code` query param for the Google profile, then the app issues its own ' +
-      'access + refresh token pair plus the public user object. The `code` and ' +
-      '`state` params are provided by Google, so this is not callable directly ' +
-      'from Swagger.',
-  })
-  @ApiQuery({
-    name: 'code',
-    required: false,
-    description: 'Authorization code returned by Google (supplied automatically).',
-  })
-  @ApiQuery({
-    name: 'state',
-    required: false,
-    description: 'Opaque CSRF/state value round-tripped through Google.',
-  })
-  @ApiOkResponse({
-    description:
-      'Google login successful — returns { status, message, data: { accessToken, refreshToken, user } }.',
-  })
-  @ApiUnauthorizedResponse({
-    description: 'Google did not return the required profile information.',
-  })
-  async googleAuthCallback(@Req() req: Request) {
-    return this.authService.googleLogin(req.user as GoogleProfile);
-  }
-
-  /**
-   * Step 1 of the SPA/mobile Google sign-in — issue a single-use nonce.
+   * OPTIONAL step for the SPA Google sign-in — issue a single-use nonce.
    *
    * The frontend calls this, passes the returned `nonce` to Google Identity
    * Services (`initialize({ nonce })`), and Google binds it into the signed ID
-   * token. Step 2 (/auth/google/verify) then requires that same nonce, which is
-   * what makes a captured ID token non-replayable.
+   * token. POST /auth/google/verify then enforces that same nonce as single-use,
+   * which is what makes a captured ID token non-replayable. Skipping this step
+   * is allowed — /auth/google/verify works without a nonce too.
    */
   @Get('google/nonce')
   @Public()
@@ -168,13 +94,13 @@ export class AuthController {
   }
 
   /**
-   * Step 2 of the SPA/mobile Google sign-in — verify the ID token. No redirect.
+   * SPA Google sign-in — verify the ID token. No redirect.
    *
-   * The frontend runs Google Identity Services (initialized with the nonce from
-   * GET /auth/google/nonce), gets a `credential` (ID token), and POSTs it here.
-   * The server verifies the token's signature/issuer/audience/expiry with
-   * Google, checks the embedded nonce is one we issued and unused, then returns
-   * the same access + refresh token pair as every other login route.
+   * The frontend runs Google Identity Services, gets a `credential` (ID token),
+   * and POSTs it here. The server verifies the token's signature/issuer/
+   * audience/expiry with Google and returns the same access + refresh token
+   * pair as every other login route. If the token carries a nonce (from the
+   * optional GET /auth/google/nonce step) it is enforced as single-use.
    */
   @Post('google/verify')
   @Public()
