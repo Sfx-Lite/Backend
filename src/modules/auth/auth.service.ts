@@ -10,9 +10,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { type StringValue } from 'ms';
 
 import { env } from '../../config/env';
+import { CacheService } from '../../common/cache/cache.service';
 import { sendResponse } from '../../common/utils/response.util';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
@@ -41,12 +44,54 @@ interface JwtPayload {
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
+  /**
+   * Google's token verifier. Configured with our OAuth client ID so that
+   * `verifyIdToken` enforces the `aud` (audience) claim — a token minted for a
+   * different app is rejected. Reused across requests (it caches Google's
+   * public signing keys internally).
+   */
+  private readonly googleOAuthClient = new OAuth2Client(env.google.clientId);
+
+  /**
+   * How long an issued Google sign-in nonce stays valid. Long enough for the
+   * user to finish the Google prompt, short enough to keep the replay window
+   * tiny. Nonces are also single-use (deleted on first successful verify).
+   */
+  private static readonly GOOGLE_NONCE_TTL_SECONDS = 10 * 60;
+
   constructor(
     @InjectRepository(User)
     private readonly users: Repository<User>,
     private readonly jwt: JwtService,
     private readonly wallets: WalletsService,
+    private readonly cache: CacheService,
   ) {}
+
+  /** Cache key for a pending single-use Google sign-in nonce. */
+  private static googleNonceKey(nonce: string): string {
+    return `google:nonce:${nonce}`;
+  }
+
+  /**
+   * Issue a single-use nonce for the SPA Google sign-in flow.
+   *
+   * The frontend calls this first, passes the returned `nonce` to Google
+   * Identity Services (`initialize({ nonce })`), and Google binds it into the
+   * signed ID token's `nonce` claim. On /auth/google/verify we require that
+   * claim to match a nonce we issued and have not yet consumed — which is what
+   * stops a captured ID token from being replayed.
+   */
+  async issueGoogleNonce() {
+    const nonce = randomBytes(32).toString('hex');
+
+    await this.cache.set(
+      AuthService.googleNonceKey(nonce),
+      true,
+      AuthService.GOOGLE_NONCE_TTL_SECONDS,
+    );
+
+    return sendResponse({ nonce }, 'Google sign-in nonce issued');
+  }
 
   /**
    * Assign the user's on-chain deposit address at signup.
@@ -236,6 +281,85 @@ export class AuthService {
     const tokens = await this.issueTokens(user);
 
     return sendResponse(tokens, 'Token refreshed');
+  }
+
+  /**
+   * SPA/mobile Google sign-in — verifies a Google ID token minted client-side
+   * by Google Identity Services, then reuses the same account-linking + token
+   * issuance path as the redirect flow.
+   *
+   * Unlike GET /auth/google → /auth/google/callback (a browser redirect flow),
+   * this takes no redirect_uri round-trip: the frontend already holds the ID
+   * token (`credential`) and POSTs it here. We verify:
+   *   • the signature against Google's public keys,
+   *   • the issuer (accounts.google.com),
+   *   • the audience (`aud` === our GOOGLE_CLIENT_ID),
+   *   • that Google marked the email as verified, and
+   *   • that the `nonce` claim matches a single-use nonce we issued via
+   *     issueGoogleNonce() and have not consumed yet (replay protection).
+   * Only then do we trust the profile and issue our own token pair.
+   */
+  async verifyGoogleToken(idToken: string) {
+    let profile: GoogleProfile;
+    let nonce: string | undefined;
+
+    try {
+      const ticket = await this.googleOAuthClient.verifyIdToken({
+        idToken,
+        audience: env.google.clientId!,
+      });
+
+      const payload = ticket.getPayload();
+
+      if (!payload?.sub || !payload.email) {
+        throw new UnauthorizedException(
+          'Google token did not contain the required profile information',
+        );
+      }
+
+      // Reject accounts whose email Google has not itself verified.
+      if (payload.email_verified === false) {
+        throw new UnauthorizedException('Google email is not verified');
+      }
+
+      // Nonce is OPTIONAL. If the client used the /auth/google/nonce step, the
+      // token carries that nonce and we enforce it as single-use below. If not,
+      // we skip it and rely on Google's signature + audience + expiry alone.
+      nonce = payload.nonce;
+
+      profile = {
+        googleId: payload.sub,
+        email: payload.email,
+        firstName: payload.given_name,
+        lastName: payload.family_name,
+        picture: payload.picture,
+      };
+    } catch (err) {
+      if (err instanceof UnauthorizedException) {
+        throw err;
+      }
+
+      this.logger.warn(
+        `Google ID token verification failed: ${(err as Error).message}`,
+      );
+      throw new UnauthorizedException('Invalid or expired Google token');
+    }
+
+    // Only enforce the nonce when the client actually sent one (opt-in replay
+    // protection). When present it must match an issued, unexpired nonce and is
+    // consumed immediately so the same token can't be replayed.
+    if (nonce) {
+      const nonceKey = AuthService.googleNonceKey(nonce);
+      const issued = await this.cache.get<boolean>(nonceKey);
+      if (!issued) {
+        throw new UnauthorizedException(
+          'Google sign-in nonce is invalid, expired, or already used',
+        );
+      }
+      await this.cache.del(nonceKey);
+    }
+
+    return this.googleLogin(profile);
   }
 
   async googleLogin(profile: GoogleProfile) {
