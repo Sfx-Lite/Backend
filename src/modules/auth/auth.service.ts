@@ -5,6 +5,7 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
+import { GoogleProfile } from './interfaces/google-profile.interface';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -123,19 +124,6 @@ export class AuthService {
    * uniqueness check still runs inside `register()` (below), which also guards
    * against a race between this check and the actual signup.
    */
-  async checkUsername(username: string) {
-    const existingUser = await this.users.findOne({
-      where: { username },
-      select: { id: true },
-    });
-
-    const available = !existingUser;
-
-    return sendResponse(
-      { username, available },
-      available ? 'Username is available' : 'Username is already taken',
-    );
-  }
 
   async register(dto: RegisterDto) {
     const existingUser = await this.users.findOne({
@@ -248,5 +236,214 @@ export class AuthService {
     const tokens = await this.issueTokens(user);
 
     return sendResponse(tokens, 'Token refreshed');
+  }
+
+  async googleLogin(profile: GoogleProfile) {
+    if (!profile.email || !profile.googleId) {
+      throw new UnauthorizedException(
+        'Google account did not provide the required profile information',
+      );
+    }
+
+    const normalizedEmail = profile.email.trim().toLowerCase();
+
+    let user = await this.users.findOne({
+      where: { googleId: profile.googleId },
+    });
+
+    if (!user) {
+      user = await this.users.findOne({
+        where: { email: normalizedEmail },
+      });
+
+      if (user) {
+        if (user.googleId && user.googleId !== profile.googleId) {
+          throw new ConflictException(
+            'This email is already linked to another Google account',
+          );
+        }
+
+        user.googleId = profile.googleId;
+
+        if (!user.firstName && profile.firstName) {
+          user.firstName = profile.firstName;
+        }
+
+        if (!user.lastName && profile.lastName) {
+          user.lastName = profile.lastName;
+        }
+
+        user = await this.users.save(user);
+      } else {
+        const username = await this.generateUniqueUsername(
+          normalizedEmail,
+          profile.firstName,
+        );
+
+        user = this.users.create({
+          username,
+          email: normalizedEmail,
+          googleId: profile.googleId,
+          passwordHash: null,
+          firstName: profile.firstName ?? null,
+          lastName: profile.lastName ?? null,
+        });
+
+        user = await this.users.save(user);
+
+        await this.provisionDepositAddress(user.id);
+      }
+    }
+
+    if (user.suspendedAt) {
+      throw new ForbiddenException('Account suspended');
+    }
+
+    const tokens = await this.issueTokens(user);
+
+    return sendResponse(
+      {
+        ...tokens,
+        user: this.toPublicUser(user),
+      },
+      'Google login successful',
+    );
+  }
+
+  private async generateUniqueUsername(
+    email: string,
+    firstName?: string,
+  ): Promise<string> {
+    const emailName = email.split('@')[0];
+
+    const baseUsername = (firstName || emailName || 'user')
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, '')
+      .slice(0, 40);
+
+    const safeBase = baseUsername || 'user';
+
+    const existingUser = await this.users.findOne({
+      where: { username: safeBase },
+    });
+
+    if (!existingUser) {
+      return safeBase;
+    }
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const suffix = Math.floor(100000 + Math.random() * 900000).toString();
+      const candidate = `${safeBase.slice(0, 43)}_${suffix}`;
+
+      const duplicate = await this.users.findOne({
+        where: { username: candidate },
+      });
+
+      if (!duplicate) {
+        return candidate;
+      }
+    }
+
+    throw new ConflictException('Could not generate a unique username');
+  }
+
+  async setPin(userId: string, pin: string) {
+    const user = await this.users.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (user.suspendedAt) {
+      throw new ForbiddenException('Account suspended');
+    }
+
+    if (user.pinHash) {
+      throw new ConflictException('Transaction PIN has already been set');
+    }
+
+    user.pinHash = await bcrypt.hash(pin, 12);
+
+    await this.users.save(user);
+
+    return sendResponse(null, 'Transaction PIN set successfully');
+  }
+
+  async verifyPin(userId: string, pin: string) {
+    const maxAttempts = 5;
+    const lockoutDurationMs = 15 * 60 * 1000;
+
+    const user = await this.users.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (user.suspendedAt) {
+      throw new ForbiddenException('Account suspended');
+    }
+
+    if (!user.pinHash) {
+      throw new ForbiddenException('Transaction PIN has not been set');
+    }
+
+    const now = new Date();
+
+    if (user.pinLockedUntil && user.pinLockedUntil.getTime() > now.getTime()) {
+      const remainingSeconds = Math.ceil(
+        (user.pinLockedUntil.getTime() - now.getTime()) / 1000,
+      );
+
+      throw new ForbiddenException(
+        `PIN verification is temporarily locked. Try again in ${remainingSeconds} seconds`,
+      );
+    }
+
+    // Reset an expired lockout before checking the PIN.
+    if (user.pinLockedUntil && user.pinLockedUntil.getTime() <= now.getTime()) {
+      user.pinLockedUntil = null;
+      user.pinFailedAttempts = 0;
+    }
+
+    const pinMatches = await bcrypt.compare(pin, user.pinHash);
+
+    if (!pinMatches) {
+      user.pinFailedAttempts = (user.pinFailedAttempts ?? 0) + 1;
+
+      if (user.pinFailedAttempts >= maxAttempts) {
+        user.pinLockedUntil = new Date(now.getTime() + lockoutDurationMs);
+        user.pinFailedAttempts = 0;
+
+        await this.users.save(user);
+
+        throw new ForbiddenException(
+          'Too many incorrect PIN attempts. Try again in 15 minutes',
+        );
+      }
+
+      const remainingAttempts = maxAttempts - user.pinFailedAttempts;
+
+      await this.users.save(user);
+
+      throw new UnauthorizedException(
+        `Invalid PIN. ${remainingAttempts} attempt${
+          remainingAttempts === 1 ? '' : 's'
+        } remaining`,
+      );
+    }
+
+    user.pinFailedAttempts = 0;
+    user.pinLockedUntil = null;
+
+    await this.users.save(user);
+
+    return sendResponse(
+      { verified: true },
+      'Transaction PIN verified successfully',
+    );
   }
 }

@@ -1,42 +1,51 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
+
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { AuthService } from './auth.service';
-import { CheckUsernameDto } from './dto/check-username.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { RegisterDto } from './dto/register.dto';
+import { SetPinDto } from './dto/set-pin.dto';
+import { VerifyPinDto } from './dto/verify-pin.dto';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
+import { GoogleProfile } from './interfaces/google-profile.interface';
 
-/**
- * AuthController — Squad A
- * ────────────────────────
- * Base path 'auth' + global prefix/version means these resolve to
- * /api/v1/auth/*. Each method is one route and does nothing but validate input
- * (via the DTO) and hand off to the service; the global interceptor wraps the
- * envelope.
- *
- * @Public() marks a route as reachable without a JWT once the auth guard is
- * switched on globally.
- */
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  // GET /api/v1/auth/username-available?username=johndoe
-  @Get('username-available')
-  @Public()
-  @ApiOperation({
-    summary: 'Check if a username is still available',
-    description:
-      'Read-only signup helper for live "username taken" feedback. Returns ' +
-      '`{ username, available }`.',
-  })
-  checkUsername(@Query() dto: CheckUsernameDto) {
-    return this.authService.checkUsername(dto.username);
+  @Post('pin')
+  @ApiOperation({ summary: 'Set transaction PIN' })
+  setPin(@CurrentUser('sub') userId: string, @Body() dto: SetPinDto) {
+    return this.authService.setPin(userId, dto.pin);
   }
 
-  // POST /api/v1/auth/register
+  @Post('pin/verify')
+  @ApiOperation({ summary: 'Verify transaction PIN' })
+  verifyPin(@CurrentUser('sub') userId: string, @Body() dto: VerifyPinDto) {
+    return this.authService.verifyPin(userId, dto.pin);
+  }
+
+  @Get('google')
+  @Public()
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: 'Start Google OAuth login' })
+  googleAuth() {
+    return;
+  }
+
+  @Get('google/callback')
+  @Public()
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: 'Handle Google OAuth callback' })
+  async googleAuthCallback(@Req() req: Request) {
+    return this.authService.googleLogin(req.user as GoogleProfile);
+  }
+
   @Post('register')
   @Public()
   @ApiOperation({
@@ -46,7 +55,6 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
-  // POST /api/v1/auth/login
   @Post('login')
   @Public()
   @ApiOperation({
@@ -57,7 +65,6 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
-  // POST /api/v1/auth/refresh
   @Post('refresh')
   @Public()
   @ApiOperation({ summary: 'Issue a fresh token pair from a refresh token' })
