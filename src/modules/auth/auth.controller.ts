@@ -1,19 +1,10 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Query,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { AuthService } from './auth.service';
-import { CheckUsernameDto } from './dto/check-username.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -53,18 +44,6 @@ export class AuthController {
   @ApiOperation({ summary: 'Handle Google OAuth callback' })
   async googleAuthCallback(@Req() req: Request) {
     return this.authService.googleLogin(req.user as GoogleProfile);
-  }
-
-  @Get('username-available')
-  @Public()
-  @ApiOperation({
-    summary: 'Check if a username is still available',
-    description:
-      'Read-only signup helper for live "username taken" feedback. Returns ' +
-      '`{ username, available }`.',
-  })
-  checkUsername(@Query() dto: CheckUsernameDto) {
-    return this.authService.checkUsername(dto.username);
   }
 
   @Post('register')

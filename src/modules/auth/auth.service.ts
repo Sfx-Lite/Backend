@@ -124,19 +124,6 @@ export class AuthService {
    * uniqueness check still runs inside `register()` (below), which also guards
    * against a race between this check and the actual signup.
    */
-  async checkUsername(username: string) {
-    const existingUser = await this.users.findOne({
-      where: { username },
-      select: { id: true },
-    });
-
-    const available = !existingUser;
-
-    return sendResponse(
-      { username, available },
-      available ? 'Username is available' : 'Username is already taken',
-    );
-  }
 
   async register(dto: RegisterDto) {
     const existingUser = await this.users.findOne({
