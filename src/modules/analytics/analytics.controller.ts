@@ -7,7 +7,7 @@ import { UserRole } from '../users/enums/user-role.enum';
 
 @ApiTags('analytics')
 @ApiBearerAuth()
-@Controller('events')
+@Controller('analytics/events')
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
