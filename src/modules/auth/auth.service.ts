@@ -5,10 +5,9 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
-import { GoogleProfile } from './interfaces/google-profile.interface';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
+import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
@@ -22,41 +21,20 @@ import { UserRole } from '../users/enums/user-role.enum';
 import { WalletsService } from '../wallets/wallets.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { GoogleProfile } from './interfaces/google-profile.interface';
 
-/**
- * Claims carried in both the access and refresh tokens. Kept minimal — the
- * refresh flow re-reads the user, so nothing here is trusted as authoritative
- * beyond `sub`.
- */
 interface JwtPayload {
   sub: string;
   email: string;
   role: UserRole;
 }
 
-/**
- * AuthService — Squad A
- * ─────────────────────
- * The controller never touches the DB, hashes, or tokens directly — it
- * calls these methods.
- */
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
-  /**
-   * Google's token verifier. Configured with our OAuth client ID so that
-   * `verifyIdToken` enforces the `aud` (audience) claim — a token minted for a
-   * different app is rejected. Reused across requests (it caches Google's
-   * public signing keys internally).
-   */
   private readonly googleOAuthClient = new OAuth2Client(env.google.clientId);
 
-  /**
-   * How long an issued Google sign-in nonce stays valid. Long enough for the
-   * user to finish the Google prompt, short enough to keep the replay window
-   * tiny. Nonces are also single-use (deleted on first successful verify).
-   */
   private static readonly GOOGLE_NONCE_TTL_SECONDS = 10 * 60;
 
   constructor(
@@ -67,20 +45,10 @@ export class AuthService {
     private readonly cache: CacheService,
   ) {}
 
-  /** Cache key for a pending single-use Google sign-in nonce. */
   private static googleNonceKey(nonce: string): string {
     return `google:nonce:${nonce}`;
   }
 
-  /**
-   * Issue a single-use nonce for the SPA Google sign-in flow.
-   *
-   * The frontend calls this first, passes the returned `nonce` to Google
-   * Identity Services (`initialize({ nonce })`), and Google binds it into the
-   * signed ID token's `nonce` claim. On /auth/google/verify we require that
-   * claim to match a nonce we issued and have not yet consumed — which is what
-   * stops a captured ID token from being replayed.
-   */
   async issueGoogleNonce() {
     const nonce = randomBytes(32).toString('hex');
 
@@ -93,32 +61,18 @@ export class AuthService {
     return sendResponse({ nonce }, 'Google sign-in nonce issued');
   }
 
-  /**
-   * Assign the user's on-chain deposit address at signup.
-   * Non-fatal: if the wallet service isn't configured yet (no master mnemonic),
-   * registration still succeeds and the address is backfilled on first use —
-   * this keeps Squad A's M1 login flow unblocked per the Week 1 plan.
-   */
   private async provisionDepositAddress(userId: string): Promise<void> {
     try {
       await this.wallets.createForUser(userId);
     } catch (err) {
       this.logger.warn(
-        `Deposit address not provisioned for user ${userId}: ${(err as Error).message}`,
+        `Deposit address not provisioned for user ${userId}: ${
+          (err as Error).message
+        }`,
       );
     }
   }
 
-  /**
-   * Single source of truth for issuing a token pair. Access and refresh
-   * tokens are signed with DIFFERENT secrets (jwt.accessSecret /
-   * jwt.refreshSecret) so leaking one doesn't compromise the other.
-   *
-   * Fix: previously the refresh token was signed with the default
-   * JwtModule secret (jwt.accessSecret), only overriding expiresIn.
-   * That meant access and refresh tokens were interchangeable, which
-   * defeats the purpose of having two secrets.
-   */
   private async issueTokens(user: User) {
     const payload: JwtPayload = {
       sub: user.id,
@@ -126,18 +80,6 @@ export class AuthService {
       role: user.role,
     };
 
-    // env.jwt.* is the single source of truth (see src/config/env.ts).
-    // accessSecret / refreshSecret are Joi-required at boot, so they're always
-    // defined at runtime — the `!` tells TypeScript that too (the typed env
-    // widens them to `string | undefined`, which breaks signAsync's overload
-    // resolution).
-    //
-    // `as StringValue` on expiresIn: jsonwebtoken's newer types want a branded
-    // `StringValue` (from the `ms` package) instead of a plain string,
-    // even though a plain string like '15m' is exactly what it accepts
-    // at runtime. This is a known typing friction point with
-    // @nestjs/jwt + jsonwebtoken v9 — not a real type-safety hole here,
-    // since the value always comes from our own validated env config.
     const accessToken = await this.jwt.signAsync(payload, {
       secret: env.jwt.accessSecret!,
       expiresIn: env.jwt.accessExpiresIn as StringValue,
@@ -148,7 +90,10 @@ export class AuthService {
       expiresIn: env.jwt.refreshExpiresIn as StringValue,
     });
 
-    return { accessToken, refreshToken };
+    return {
+      accessToken,
+      refreshToken,
+    };
   }
 
   private toPublicUser(user: User) {
@@ -161,14 +106,6 @@ export class AuthService {
       role: user.role,
     };
   }
-
-  /**
-   * Check whether a username is already taken, WITHOUT attempting to register.
-   * Lets the frontend give live "username available / taken" feedback on the
-   * signup form. This is a read-only convenience endpoint — the authoritative
-   * uniqueness check still runs inside `register()` (below), which also guards
-   * against a race between this check and the actual signup.
-   */
 
   async register(dto: RegisterDto) {
     const existingUser = await this.users.findOne({
@@ -205,16 +142,6 @@ export class AuthService {
     );
   }
 
-  /**
-   * (email OR username) + password login.
-   *  1. Look up the user by email OR username (same field accepts either).
-   *  2. Verify the password against the stored bcrypt hash.
-   *  3. Issue an access + refresh token pair.
-   *
-   * The failure message is deliberately identical for "no such user",
-   * "Google-only account" and "wrong password" so the endpoint can't be used
-   * to enumerate which emails or usernames are registered.
-   */
   async login(dto: LoginDto) {
     const user = await this.users.findOne({
       where: [
@@ -223,7 +150,6 @@ export class AuthService {
       ],
     });
 
-    // Google-only accounts have no passwordHash and cannot log in by password.
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Invalid email or password');
     }
@@ -232,6 +158,7 @@ export class AuthService {
       dto.password,
       user.passwordHash,
     );
+
     if (!passwordMatches) {
       throw new UnauthorizedException('Invalid email or password');
     }
@@ -246,21 +173,15 @@ export class AuthService {
       {
         ...tokens,
         user: this.toPublicUser(user),
+        isPin: Boolean(user.pinHash),
       },
       'Login successful',
     );
   }
 
-  /**
-   * Exchange a valid refresh token for a fresh token pair (rotation).
-   *  1. Verify the refresh token's signature + expiry against the REFRESH
-   *     secret (an access token presented here will fail — different secret).
-   *  2. Re-load the user so the new tokens reflect current email/role and so a
-   *     deleted or suspended account can't refresh its way back in.
-   *  3. Issue and return a new access + refresh pair.
-   */
   async refresh(refreshToken: string) {
     let payload: JwtPayload;
+
     try {
       payload = await this.jwt.verifyAsync<JwtPayload>(refreshToken, {
         secret: env.jwt.refreshSecret!,
@@ -269,7 +190,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    const user = await this.users.findOne({ where: { id: payload.sub } });
+    const user = await this.users.findOne({
+      where: { id: payload.sub },
+    });
+
     if (!user) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
@@ -283,22 +207,6 @@ export class AuthService {
     return sendResponse(tokens, 'Token refreshed');
   }
 
-  /**
-   * SPA/mobile Google sign-in — verifies a Google ID token minted client-side
-   * by Google Identity Services, then reuses the same account-linking + token
-   * issuance path as the redirect flow.
-   *
-   * Unlike GET /auth/google → /auth/google/callback (a browser redirect flow),
-   * this takes no redirect_uri round-trip: the frontend already holds the ID
-   * token (`credential`) and POSTs it here. We verify:
-   *   • the signature against Google's public keys,
-   *   • the issuer (accounts.google.com),
-   *   • the audience (`aud` === our GOOGLE_CLIENT_ID),
-   *   • that Google marked the email as verified, and
-   *   • that the `nonce` claim matches a single-use nonce we issued via
-   *     issueGoogleNonce() and have not consumed yet (replay protection).
-   * Only then do we trust the profile and issue our own token pair.
-   */
   async verifyGoogleToken(idToken: string) {
     let profile: GoogleProfile;
     let nonce: string | undefined;
@@ -317,14 +225,10 @@ export class AuthService {
         );
       }
 
-      // Reject accounts whose email Google has not itself verified.
       if (payload.email_verified === false) {
         throw new UnauthorizedException('Google email is not verified');
       }
 
-      // Nonce is OPTIONAL. If the client used the /auth/google/nonce step, the
-      // token carries that nonce and we enforce it as single-use below. If not,
-      // we skip it and rely on Google's signature + audience + expiry alone.
       nonce = payload.nonce;
 
       profile = {
@@ -342,20 +246,21 @@ export class AuthService {
       this.logger.warn(
         `Google ID token verification failed: ${(err as Error).message}`,
       );
+
       throw new UnauthorizedException('Invalid or expired Google token');
     }
 
-    // Only enforce the nonce when the client actually sent one (opt-in replay
-    // protection). When present it must match an issued, unexpired nonce and is
-    // consumed immediately so the same token can't be replayed.
     if (nonce) {
       const nonceKey = AuthService.googleNonceKey(nonce);
+
       const issued = await this.cache.get<boolean>(nonceKey);
+
       if (!issued) {
         throw new UnauthorizedException(
           'Google sign-in nonce is invalid, expired, or already used',
         );
       }
+
       await this.cache.del(nonceKey);
     }
 
@@ -370,6 +275,8 @@ export class AuthService {
     }
 
     const normalizedEmail = profile.email.trim().toLowerCase();
+
+    let isNewUser = false;
 
     let user = await this.users.findOne({
       where: { googleId: profile.googleId },
@@ -415,6 +322,8 @@ export class AuthService {
 
         user = await this.users.save(user);
 
+        isNewUser = true;
+
         await this.provisionDepositAddress(user.id);
       }
     }
@@ -429,6 +338,8 @@ export class AuthService {
       {
         ...tokens,
         user: this.toPublicUser(user),
+        isNewUser,
+        isPin: Boolean(user.pinHash),
       },
       'Google login successful',
     );
@@ -457,6 +368,7 @@ export class AuthService {
 
     for (let attempt = 0; attempt < 10; attempt += 1) {
       const suffix = Math.floor(100000 + Math.random() * 900000).toString();
+
       const candidate = `${safeBase.slice(0, 43)}_${suffix}`;
 
       const duplicate = await this.users.findOne({
@@ -527,7 +439,6 @@ export class AuthService {
       );
     }
 
-    // Reset an expired lockout before checking the PIN.
     if (user.pinLockedUntil && user.pinLockedUntil.getTime() <= now.getTime()) {
       user.pinLockedUntil = null;
       user.pinFailedAttempts = 0;
@@ -566,7 +477,9 @@ export class AuthService {
     await this.users.save(user);
 
     return sendResponse(
-      { verified: true },
+      {
+        verified: true,
+      },
       'Transaction PIN verified successfully',
     );
   }
