@@ -27,6 +27,7 @@ export async function seedUsers(dataSource: DataSource) {
   const user = userRepository.create({
     username: 'testuser',
     email: 'testuser@sfx.dev',
+    mobileNumber: '+2348000000000',
     passwordHash,
     role: UserRole.USER,
     firstName: 'Test',
