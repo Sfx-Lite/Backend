@@ -21,7 +21,16 @@ export class RegisterDto {
   @IsEmail()
   email!: string;
 
-  @ApiProperty({ example: '+2348012345678' })
+  /**
+   * Any country is supported. `@IsPhoneNumber()` with no region argument
+   * accepts a valid international number for ANY country, but it must be in
+   * E.164 format (leading "+" and country code), e.g. +2348012345678 (NG),
+   * +14155552671 (US), +447911123456 (GB).
+   */
+  @ApiProperty({
+    example: '+2348012345678',
+    description: 'International phone number in E.164 format (any country).',
+  })
   @IsString()
   @IsPhoneNumber()
   mobileNumber!: string;
