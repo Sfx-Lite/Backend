@@ -101,6 +101,7 @@ export class AuthService {
       id: user.id,
       username: user.username,
       email: user.email,
+      mobileNumber: user.mobileNumber,
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
@@ -109,11 +110,17 @@ export class AuthService {
 
   async register(dto: RegisterDto) {
     const existingUser = await this.users.findOne({
-      where: [{ email: dto.email }, { username: dto.username }],
+      where: [
+        { email: dto.email },
+        { username: dto.username },
+        { mobileNumber: dto.mobileNumber },
+      ],
     });
 
     if (existingUser) {
-      throw new ConflictException('Email or username already exists');
+      throw new ConflictException(
+        'Email, username, or mobile number already exists',
+      );
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
@@ -121,6 +128,7 @@ export class AuthService {
     const user = this.users.create({
       username: dto.username,
       email: dto.email,
+      mobileNumber: dto.mobileNumber,
       passwordHash,
       firstName: dto.firstName,
       lastName: dto.lastName,
