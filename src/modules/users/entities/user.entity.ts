@@ -21,7 +21,12 @@ export class User extends BaseEntity {
   // Collected at password registration and checked for duplicates in the
   // service layer. Nullable and NOT DB-unique so Google-only accounts (which
   // never supply a phone number) can still be created.
-  @Column({ name: 'mobile_number', type: 'varchar', length: 20, nullable: true })
+  @Column({
+    name: 'mobile_number',
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+  })
   mobileNumber?: string | null;
 
   @Column({ name: 'password_hash', type: 'varchar', nullable: true })
