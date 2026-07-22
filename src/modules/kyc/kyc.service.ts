@@ -7,7 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { sendResponse } from '../../common/utils/response.util';
-import { ReviewKycSubmissionDto } from './dto/review-kyc-submission.dto';
+import { ReviewKycSubmissionDto } from './dto/kyc.dto';
 import { KycSubmission } from './entities/kyc-submission.entity';
 import { KycSubmissionStatus } from './enums/kyc-submission-status.enum';
 import { assertValidKycStatusTransition } from './utils/kyc-status-machine';

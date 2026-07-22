@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { KycSubmission } from './entities/kyc-submission.entity';
+import { entities } from './entities';
 import { KycController } from './kyc.controller';
 import { KycService } from './kyc.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([KycSubmission])],
+  imports: [TypeOrmModule.forFeature([...entities])],
   controllers: [KycController],
   providers: [KycService],
   exports: [KycService],
