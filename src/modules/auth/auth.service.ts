@@ -104,23 +104,31 @@ export class AuthService {
       mobileNumber: user.mobileNumber,
       firstName: user.firstName,
       lastName: user.lastName,
+      country: user.country,
       role: user.role,
     };
   }
 
   async register(dto: RegisterDto) {
-    const existingUser = await this.users.findOne({
+    const existingUsers = await this.users.find({
       where: [
         { email: dto.email },
         { username: dto.username },
         { mobileNumber: dto.mobileNumber },
       ],
+      select: ['email', 'username', 'mobileNumber'],
     });
 
-    if (existingUser) {
-      throw new ConflictException(
-        'Email, username, or mobile number already exists',
-      );
+    if (existingUsers.some((u) => u.email === dto.email)) {
+      throw new ConflictException('Email already exists');
+    }
+
+    if (existingUsers.some((u) => u.username === dto.username)) {
+      throw new ConflictException('Username already exists');
+    }
+
+    if (existingUsers.some((u) => u.mobileNumber === dto.mobileNumber)) {
+      throw new ConflictException('Mobile number already exists');
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
@@ -145,6 +153,7 @@ export class AuthService {
       {
         ...tokens,
         user: this.toPublicUser(user),
+        isPin: Boolean(user.pinHash),
       },
       'Registration successful',
     );
