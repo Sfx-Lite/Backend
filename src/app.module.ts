@@ -13,7 +13,9 @@ import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { LedgerModule } from './modules/ledger/ledger.module';
 import { WalletsModule } from './modules/wallets/wallets.module';
+import { FxModule } from './modules/fx/fx.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AdminModule } from './modules/admin/admin.module';
 
@@ -28,6 +30,7 @@ import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor';
 import { CacheModule } from './common/cache/cache.module';
 import { ResponseCacheInterceptor } from './common/cache/response-cache.interceptor';
 import { THROTTLER_IP, THROTTLER_USER } from './common/constants';
+
 
 @Module({
   imports: [
