@@ -19,6 +19,6 @@ export class DocChunk extends BaseEntity {
   @Column({ type: 'jsonb', nullable: true })
   metadata?: Record<string, unknown> | null;
 
-  @Column({ type: 'varchar', nullable: true, unique: false })
+  @Column({ name: 'content_hash', type: 'varchar', nullable: true })
   contentHash?: string | null;
 }

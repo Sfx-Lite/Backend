@@ -28,6 +28,7 @@ import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor';
 import { CacheModule } from './common/cache/cache.module';
 import { ResponseCacheInterceptor } from './common/cache/response-cache.interceptor';
 import { THROTTLER_IP, THROTTLER_USER } from './common/constants';
+import { RagModule } from './modules/rag/rag.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { THROTTLER_IP, THROTTLER_USER } from './common/constants';
     WalletsModule,
     AnalyticsModule,
     AdminModule,
+    RagModule,
   ],
 
   providers: [

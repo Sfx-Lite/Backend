@@ -3,6 +3,9 @@ import { NestFactory } from '@nestjs/core';
 import { CliModule } from './cli.module';
 import { RagService } from './modules/rag/rag.service';
 import { runIngestCommand } from './cli/commands/ingest.command';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(CliModule);

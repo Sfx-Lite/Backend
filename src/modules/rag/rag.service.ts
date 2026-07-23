@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { DocChunk } from './entities/doc-chunk.entity';
 import { validatedEnv } from 'src/config/env.validation';
 
+const VOYAGE_API_URL = 'https://api.voyageai.com/v1/embeddings';
 const EMBEDDING_MODEL = 'voyage-4';
 const CHUNK_TOKEN_TARGET = 500;
 const CHUNK_OVERLAP_TOKENS = 50;
@@ -66,7 +67,7 @@ export class RagService {
     const apiKey = validatedEnv.VOYAGE_API_KEY;
     if (!apiKey) throw new Error('VOYAGE_API_KEY is not set');
 
-    const response = await fetch(validatedEnv.VOYAGE_API_URL, {
+    const response = await fetch(VOYAGE_API_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -122,8 +123,8 @@ export class RagService {
       const vectorLiteral = this.toVectorLiteral(embeddings[i]);
 
       await this.docChunkRepo.query(
-        `INSERT INTO doc_chunks (source, content, embedding, "contentHash")
-         VALUES ($1, $2, $3, $4)`,
+        `INSERT INTO doc_chunks (source, content, embedding, content_hash)
+   VALUES ($1, $2, $3, $4)`,
         [source, chunks[i], vectorLiteral, contentHash],
       );
       inserted++;

@@ -1,4 +1,4 @@
-import { readFile } from 'fs/promises';
+import { readFile } from 'node:fs/promises';
 import * as p from '@clack/prompts';
 import { RagService } from '../../modules/rag/rag.service';
 import { startSpinner, reportResult } from '../ui/prompts';
@@ -14,8 +14,18 @@ export async function runIngestCommand(
   spinner.stop('File read');
 
   const embedSpinner = startSpinner('Chunking and embedding');
-  const { inserted, skipped } = await ragService.ingest(content, filePath);
-  embedSpinner.stop('Ingestion complete');
 
-  reportResult(inserted, skipped);
+  try {
+    const { inserted, skipped } = await ragService.ingest(content, filePath);
+    embedSpinner.stop('Ingestion complete');
+    reportResult(inserted, skipped);
+  } catch (error) {
+    embedSpinner.stop('Ingestion failed');
+    // Print the REAL error — this is what was being hidden
+    p.log.error(error instanceof Error ? error.message : String(error));
+    if (error instanceof Error && error.stack) {
+      console.error(error.stack);
+    }
+    process.exitCode = 1;
+  }
 }

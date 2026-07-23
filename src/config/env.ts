@@ -70,10 +70,6 @@ export const env = {
     usdcAddress: process.env.USDC_TOKEN_ADDRESS,
     depositConfirmations: int(process.env.DEPOSIT_CONFIRMATIONS, 3),
   },
-
-  voyage: {
-    apiUrl: process.env.VOYAGE_API_URL,
-  },
 } as const;
 
 export type Env = typeof env;

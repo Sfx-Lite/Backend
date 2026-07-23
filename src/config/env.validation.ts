@@ -1,4 +1,5 @@
 import * as Joi from 'joi';
+import * as dotenv from 'dotenv';
 
 /**
  * Fails fast on boot if the environment is malformed.
@@ -25,6 +26,7 @@ interface ValidatedEnvironment {
   VOYAGE_API_URL: string;
   VOYAGE_API_KEY: string;
 }
+dotenv.config();
 
 export const envValidationSchema: Joi.ObjectSchema<ValidatedEnvironment> =
   Joi.object<ValidatedEnvironment>({
@@ -66,6 +68,7 @@ export const envValidationSchema: Joi.ObjectSchema<ValidatedEnvironment> =
 
 const validationResult = envValidationSchema.validate(process.env, {
   abortEarly: false,
+  allowUnknown: true,
 });
 
 if (validationResult.error) {
