@@ -5,33 +5,71 @@ import * as Joi from 'joi';
  * Secrets that arrive later in the program (chain, Cloudinary, Anthropic)
  * are optional here and enforced by the modules that consume them.
  */
-export const envValidationSchema = Joi.object({
-  NODE_ENV: Joi.string()
-    .valid('development', 'test', 'staging', 'production')
-    .default('development'),
-  PORT: Joi.number().port().default(4000),
-  API_PREFIX: Joi.string().default('api'),
-  API_VERSION: Joi.string().default('1'),
+interface ValidatedEnvironment {
+  NODE_ENV: 'development' | 'test' | 'staging' | 'production';
+  PORT: number;
+  API_PREFIX: string;
+  API_VERSION: string;
+  CORS_ORIGINS: string;
+  THROTTLE_TTL_SECONDS: number;
+  THROTTLE_LIMIT_IP: number;
+  THROTTLE_LIMIT_USER: number;
+  DATABASE_URL: string;
+  DATABASE_SSL: boolean;
+  DATABASE_LOGGING: boolean;
+  JWT_ACCESS_SECRET: string;
+  JWT_REFRESH_SECRET: string;
+  REDIS_URL?: string;
+  CACHE_TTL_SECONDS: number;
+  CACHE_MAX_ITEMS: number;
+  VOYAGE_API_URL: string;
+  VOYAGE_API_KEY: string;
+}
 
-  CORS_ORIGINS: Joi.string().allow('').default(''),
+export const envValidationSchema: Joi.ObjectSchema<ValidatedEnvironment> =
+  Joi.object<ValidatedEnvironment>({
+    NODE_ENV: Joi.string()
+      .valid('development', 'test', 'staging', 'production')
+      .default('development'),
+    PORT: Joi.number().port().default(4000),
+    API_PREFIX: Joi.string().default('api'),
+    API_VERSION: Joi.string().default('1'),
 
-  THROTTLE_TTL_SECONDS: Joi.number().min(1).default(60),
-  THROTTLE_LIMIT_IP: Joi.number().min(1).default(30),
-  THROTTLE_LIMIT_USER: Joi.number().min(1).default(100),
+    CORS_ORIGINS: Joi.string().allow('').default(''),
 
-  DATABASE_URL: Joi.string()
-    .uri({ scheme: ['postgres', 'postgresql'] })
-    .trim()
-    .min(1)
-    .required(),
-  DATABASE_SSL: Joi.boolean().truthy('true').falsy('false').default(false),
-  DATABASE_LOGGING: Joi.boolean().truthy('true').falsy('false').default(false),
+    THROTTLE_TTL_SECONDS: Joi.number().min(1).default(60),
+    THROTTLE_LIMIT_IP: Joi.number().min(1).default(30),
+    THROTTLE_LIMIT_USER: Joi.number().min(1).default(100),
 
-  JWT_ACCESS_SECRET: Joi.string().min(8).required(),
-  JWT_REFRESH_SECRET: Joi.string().min(8).required(),
+    DATABASE_URL: Joi.string()
+      .uri({ scheme: ['postgres', 'postgresql'] })
+      .trim()
+      .min(1)
+      .required(),
+    DATABASE_SSL: Joi.boolean().truthy('true').falsy('false').default(false),
+    DATABASE_LOGGING: Joi.boolean()
+      .truthy('true')
+      .falsy('false')
+      .default(false),
 
-  // Cache is optional — omit REDIS_URL to run on the in-memory fallback.
-  REDIS_URL: Joi.string().uri().allow('').optional(),
-  CACHE_TTL_SECONDS: Joi.number().min(1).default(60),
-  CACHE_MAX_ITEMS: Joi.number().min(1).default(1000),
+    JWT_ACCESS_SECRET: Joi.string().min(8),
+    JWT_REFRESH_SECRET: Joi.string().min(8),
+
+    // Cache is optional — omit REDIS_URL to run on the in-memory fallback.
+    REDIS_URL: Joi.string().uri().allow('').optional(),
+    CACHE_TTL_SECONDS: Joi.number().min(1).default(60),
+    CACHE_MAX_ITEMS: Joi.number().min(1).default(1000),
+
+    VOYAGE_API_URL: Joi.string().uri(),
+    VOYAGE_API_KEY: Joi.string().min(1),
+  });
+
+const validationResult = envValidationSchema.validate(process.env, {
+  abortEarly: false,
 });
+
+if (validationResult.error) {
+  throw new Error(`Config validation error: ${validationResult.error.message}`);
+}
+
+export const validatedEnv = validationResult.value;

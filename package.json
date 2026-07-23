@@ -5,9 +5,6 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
-  "bin": {
-    "sfxlite": "./dist/cli.js"
-  },
   "scripts": {
     "prebuild": "node scripts/ensure-env.js",
     "build": "nest build",
@@ -33,7 +30,8 @@
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
     "seed": "ts-node src/database/seed.ts",
-    "wallet:check": "ts-node scripts/check-master-wallet.ts"
+    "wallet:check": "ts-node scripts/check-master-wallet.ts",
+    "cli": "ts-node -r tsconfig-paths/register src/cli.ts"
   },
   "dependencies": {
     "@clack/prompts": "^1.7.0",

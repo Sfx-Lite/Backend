@@ -3,9 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { createHash } from 'node:crypto';
 import { DocChunk } from './entities/doc-chunk.entity';
-import { env } from 'src/config/env';
+import { validatedEnv } from 'src/config/env.validation';
 
-const VOYAGE_API_URL = env.voyage.apiUrl as string;
 const EMBEDDING_MODEL = 'voyage-4';
 const CHUNK_TOKEN_TARGET = 500;
 const CHUNK_OVERLAP_TOKENS = 50;
@@ -64,10 +63,10 @@ export class RagService {
     texts: string[],
     inputType: 'document' | 'query',
   ): Promise<number[][]> {
-    const apiKey = process.env.VOYAGE_API_KEY;
+    const apiKey = validatedEnv.VOYAGE_API_KEY;
     if (!apiKey) throw new Error('VOYAGE_API_KEY is not set');
 
-    const response = await fetch(VOYAGE_API_URL, {
+    const response = await fetch(validatedEnv.VOYAGE_API_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
