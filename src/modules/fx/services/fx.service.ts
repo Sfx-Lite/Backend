@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 
 import { InjectRepository } from '@nestjs/typeorm';
@@ -77,6 +78,8 @@ export class FxService {
       );
     }
 
+    this.ensureRateIsFresh(rate);
+
     return rate;
   }
 
@@ -94,6 +97,14 @@ async getExchangeRate(
 
   baseCurrency = baseCurrency.toUpperCase();
   quoteCurrency = quoteCurrency.toUpperCase();
+
+  await this.ensureCurrencyExists(
+  baseCurrency,
+);
+
+  await this.ensureCurrencyExists(
+  quoteCurrency,
+);
 
   /**
    * Same currency.
@@ -213,6 +224,52 @@ async syncRates(
   );
 }
 
+
+  /**
+ * Ensures a currency exists in the FX database.
+ */
+private async ensureCurrencyExists(
+  currency: string,
+): Promise<void> {
+
+  const exists =
+    await this.fxRepository.exists({
+      where: [
+        { baseCurrency: currency },
+        { quoteCurrency: currency },
+      ],
+    });
+
+  if (!exists) {
+    throw new BadRequestException(
+      `Currency ${currency} is not supported.`,
+    );
+  }
+}
+
+
+  /**
+ * Ensures an exchange rate is still fresh.
+ */
+private ensureRateIsFresh(
+  fxRate: FxRate,
+): void {
+
+  const MAX_AGE_MINUTES = 60;
+
+  const ageInMilliseconds =
+    Date.now() -
+    fxRate.createdAt.getTime();
+
+  const ageInMinutes =
+    ageInMilliseconds / 60000;
+
+  if (ageInMinutes > MAX_AGE_MINUTES) {
+    throw new ServiceUnavailableException(
+      'Exchange rates are temporarily outdated. Please try again later.',
+    );
+  }
+}
 
   /**
    * Validates exchange rates before saving.

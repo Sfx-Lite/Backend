@@ -17,6 +17,7 @@ import { LedgerModule } from './modules/ledger/ledger.module';
 import { WalletsModule } from './modules/wallets/wallets.module';
 import { FxModule } from './modules/fx/fx.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { FeesModule } from './modules/fees/fees.module';
 import { AdminModule } from './modules/admin/admin.module';
 
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
@@ -75,6 +76,7 @@ import { THROTTLER_IP, THROTTLER_USER } from './common/constants';
     AnalyticsModule,
     AdminModule,
     FxModule,
+    FeesModule,
   ],
 
   providers: [

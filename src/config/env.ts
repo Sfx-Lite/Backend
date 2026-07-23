@@ -70,6 +70,28 @@ export const env = {
     usdcAddress: process.env.USDC_TOKEN_ADDRESS,
     depositConfirmations: int(process.env.DEPOSIT_CONFIRMATIONS, 3),
   },
+
+
+  fees: {
+  localPercentage: Number(
+    process.env.LOCAL_TRANSFER_FEE_PERCENTAGE ?? 0.01,
+  ),
+
+  internationalPercentage: Number(
+    process.env.INTERNATIONAL_TRANSFER_FEE_PERCENTAGE ?? 0.02,
+  ),
+
+  minimumFee: Number(
+    process.env.MINIMUM_TRANSFER_FEE ?? 0.5,
+  ),
+
+  maximumFee: Number(
+    process.env.MAXIMUM_TRANSFER_FEE ?? 25,
+  ),
+},
+
 } as const;
+
+
 
 export type Env = typeof env;
