@@ -79,8 +79,7 @@ export class AuthController {
       'verification. Clients that skip this step can still call /auth/google/verify.',
   })
   @ApiOkResponse({
-    description:
-      'Nonce issued — returns { status, message, data: { nonce } }.',
+    description: 'Nonce issued — returns { status, message, data: { nonce } }.',
     schema: {
       example: {
         status: true,

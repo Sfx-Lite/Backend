@@ -64,6 +64,11 @@ export const env = {
     callbackUrl: process.env.GOOGLE_CALLBACK_URL,
   },
 
+  email: {
+    resendApiKey: process.env.RESEND_API_KEY,
+    fromEmail: process.env.RESEND_FROM_EMAIL,
+  },
+
   chain: {
     rpcUrl: process.env.ALCHEMY_AMOY_RPC_URL,
     masterMnemonic: process.env.MASTER_WALLET_MNEMONIC,
