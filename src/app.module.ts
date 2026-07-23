@@ -14,6 +14,7 @@ import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { WalletsModule } from './modules/wallets/wallets.module';
+import { LedgerModule } from './modules/ledger/ledger.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AdminModule } from './modules/admin/admin.module';
 
@@ -68,6 +69,7 @@ import { THROTTLER_IP, THROTTLER_USER } from './common/constants';
     AuthModule,
     UsersModule,
     WalletsModule,
+    LedgerModule,
     AnalyticsModule,
     AdminModule,
   ],
