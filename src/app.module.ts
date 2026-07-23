@@ -70,9 +70,11 @@ import { THROTTLER_IP, THROTTLER_USER } from './common/constants';
 
     AuthModule,
     UsersModule,
+    LedgerModule,
     WalletsModule,
     AnalyticsModule,
     AdminModule,
+    FxModule,
   ],
 
   providers: [
