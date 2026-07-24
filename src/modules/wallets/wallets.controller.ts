@@ -44,4 +44,19 @@ export class WalletsController {
       'Deposit address',
     );
   }
+
+  // GET /api/v1/wallets/balance
+  @Get('balance')
+  @ApiOperation({
+    summary: "Get the current user's in-app USDC balance (from the ledger)",
+  })
+  async balance(@CurrentUser('sub') userId: string) {
+    if (!userId) {
+      throw new UnauthorizedException();
+    }
+
+    const balance = await this.wallets.balanceForUser(userId);
+
+    return sendResponse(balance, 'Wallet balance');
+  }
 }

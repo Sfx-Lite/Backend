@@ -74,6 +74,17 @@ export const env = {
     masterMnemonic: process.env.MASTER_WALLET_MNEMONIC,
     usdcAddress: process.env.USDC_TOKEN_ADDRESS,
     depositConfirmations: int(process.env.DEPOSIT_CONFIRMATIONS, 3),
+    // Max block span per eth_getLogs call. Hosted RPC free tiers cap this
+    // (Alchemy Amoy free tier = 10). The watcher pages the scan window into
+    // chunks this size, so raise it only on a paid/self-hosted node.
+    getLogsMaxRange: int(process.env.GETLOGS_MAX_RANGE, 10),
+    // Per-request RPC timeout (ms). A slow/hung call aborts and the watcher
+    // simply retries on the next poll instead of blocking for minutes.
+    requestTimeoutMs: int(process.env.RPC_REQUEST_TIMEOUT_MS, 20_000),
+    // Blocks to re-scan on a cold start (no in-memory checkpoint). Kept small so
+    // the first poll isn't a big getLogs burst on a free RPC; overlap is safe
+    // because crediting is idempotent.
+    coldStartLookback: int(process.env.COLD_START_LOOKBACK, 120),
   },
 } as const;
 
