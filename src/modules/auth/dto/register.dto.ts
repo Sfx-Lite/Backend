@@ -1,6 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsPhoneNumber, IsString, MinLength } from 'class-validator';
 
+import { IsStrongPassword } from '../../../common/decorators/is-strong-password.decorator';
+
 /**
  * RegisterDto — Squad A
  * ─────────────────────
@@ -50,8 +52,12 @@ export class RegisterDto {
   @MinLength(2)
   country!: string;
 
-  @ApiProperty({ example: 'super-secret', minLength: 8 })
+  @ApiProperty({
+    example: 'Super-secret1',
+    description:
+      'At least 8 characters, with 1 uppercase letter, 1 number and 1 special character.',
+  })
   @IsString()
-  @MinLength(8)
+  @IsStrongPassword()
   password!: string;
 }

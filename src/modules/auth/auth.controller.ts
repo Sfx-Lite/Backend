@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -11,10 +12,12 @@ import {
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { AuthService } from './auth.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { GoogleVerifyDto } from './dto/google-verify.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SetPinDto } from './dto/set-pin.dto';
 import { VerifyPinDto } from './dto/verify-pin.dto';
 
@@ -153,5 +156,48 @@ export class AuthController {
   @ApiOperation({ summary: 'Issue a fresh token pair from a refresh token' })
   refresh(@Body() dto: RefreshDto) {
     return this.authService.refresh(dto.refreshToken);
+  }
+
+  @Post('forgot_password')
+  @Public()
+  @ApiOperation({
+    summary: 'Request a password reset link',
+    description:
+      'Sends a password reset link to the account email if it exists. The ' +
+      'response is identical whether or not the email is registered, to avoid ' +
+      'account enumeration.',
+  })
+  @ApiBody({ type: ForgotPasswordDto })
+  @ApiOkResponse({
+    description:
+      'A reset link has been sent if the email belongs to an eligible account.',
+  })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Post('reset_password/:token')
+  @Public()
+  @ApiOperation({
+    summary: 'Reset a password using the emailed token',
+    description:
+      'Consumes the single-use token from the emailed reset link (URL param) ' +
+      'and sets the new password. The link expires after 60 minutes.',
+  })
+  @ApiParam({
+    name: 'token',
+    required: true,
+    description: 'The password reset token from the emailed link.',
+  })
+  @ApiBody({ type: ResetPasswordDto })
+  @ApiOkResponse({ description: 'Password has been reset successfully.' })
+  @ApiUnauthorizedResponse({
+    description: 'The reset token is invalid or has expired.',
+  })
+  resetPassword(
+    @Param('token') token: string,
+    @Body() dto: ResetPasswordDto,
+  ) {
+    return this.authService.resetPassword(token, dto);
   }
 }
