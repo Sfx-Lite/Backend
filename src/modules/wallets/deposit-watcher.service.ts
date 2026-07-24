@@ -20,12 +20,6 @@ export interface DepositResult {
 
 /** How often the watcher polls Amoy. ~15s per the program doc (§03). */
 const POLL_INTERVAL_MS = 15_000;
-/**
- * On a cold start (no in-memory checkpoint) we look back this many blocks from
- * the confirmed head, so a short outage doesn't miss deposits. Overlapping
- * re-scans are safe because crediting is idempotent by (txHash, user).
- */
-const COLD_START_LOOKBACK = 500;
 /** Cap blocks scanned per poll so a big backlog can't blow the RPC free tier. */
 const MAX_RANGE_PER_POLL = 2_000;
 
@@ -106,7 +100,8 @@ export class DepositWatcherService {
     }
 
     const fromBlock =
-      this.nextFromBlock ?? Math.max(0, safeHead - COLD_START_LOOKBACK);
+      this.nextFromBlock ??
+      Math.max(0, safeHead - env.chain.coldStartLookback);
     if (fromBlock > safeHead) {
       return; // nothing new has reached the confirmation threshold
     }

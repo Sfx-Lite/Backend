@@ -2,6 +2,7 @@ import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import {
   Contract,
   EventLog,
+  FetchRequest,
   JsonRpcProvider,
   formatUnits,
   getAddress,
@@ -57,9 +58,15 @@ export class ChainService {
         'Chain service unavailable: ALCHEMY_AMOY_RPC_URL is not configured',
       );
     }
+    // Wrap the URL in a FetchRequest so we can bound how long a single RPC call
+    // may hang — a slow node then aborts fast and the watcher retries next poll,
+    // instead of blocking for minutes on ethers' long default timeout.
+    const request = new FetchRequest(env.chain.rpcUrl);
+    request.timeout = env.chain.requestTimeoutMs;
+
     // Amoy chainId 80002, pinned as a static network so ethers skips the
     // per-call eth_chainId round-trip (kinder to the RPC free tier).
-    this.cachedProvider = new JsonRpcProvider(env.chain.rpcUrl, 80002, {
+    this.cachedProvider = new JsonRpcProvider(request, 80002, {
       staticNetwork: true,
     });
     return this.cachedProvider;
@@ -128,26 +135,34 @@ export class ChainService {
     const checksummed = addresses.map((a) => getAddress(a));
 
     const filter = usdc.filters.Transfer(null, checksummed);
-    const logs = await usdc.queryFilter(filter, fromBlock, toBlock);
+    // Hosted RPC free tiers cap eth_getLogs at a small block span (Alchemy Amoy
+    // free tier = 10), so page through [fromBlock, toBlock] in windows of
+    // maxRange blocks instead of requesting the whole range in one call.
+    const maxRange = Math.max(1, env.chain.getLogsMaxRange);
 
     const transfers: UsdcTransfer[] = [];
-    for (const log of logs) {
-      // queryFilter with a parsed ABI yields EventLog (has .args); guard anyway.
-      if (!(log instanceof EventLog)) {
-        continue;
+    for (let start = fromBlock; start <= toBlock; start += maxRange) {
+      const end = Math.min(start + maxRange - 1, toBlock);
+      const logs = await usdc.queryFilter(filter, start, end);
+
+      for (const log of logs) {
+        // queryFilter with a parsed ABI yields EventLog (has .args); guard anyway.
+        if (!(log instanceof EventLog)) {
+          continue;
+        }
+        const value = log.args.value as bigint;
+        if (value <= 0n) {
+          continue;
+        }
+        transfers.push({
+          to: getAddress(log.args.to as string),
+          from: getAddress(log.args.from as string),
+          amount: formatUnits(value, decimals),
+          txHash: log.transactionHash,
+          logIndex: log.index,
+          blockNumber: log.blockNumber,
+        });
       }
-      const value = log.args.value as bigint;
-      if (value <= 0n) {
-        continue;
-      }
-      transfers.push({
-        to: getAddress(log.args.to as string),
-        from: getAddress(log.args.from as string),
-        amount: formatUnits(value, decimals),
-        txHash: log.transactionHash,
-        logIndex: log.index,
-        blockNumber: log.blockNumber,
-      });
     }
     return transfers;
   }
