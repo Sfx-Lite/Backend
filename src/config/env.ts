@@ -24,6 +24,10 @@ export const env = {
   apiPrefix: process.env.API_PREFIX ?? 'api',
   apiVersion: process.env.API_VERSION ?? '1',
 
+  // Base URL of the web client — used to build user-facing links such as the
+  // password-reset link emailed to users. Set FRONTEND_URL in production.
+  frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
+
   cors: {
     // "a,b,c" -> ['a','b','c'] — trimmed, empties removed
     origins: (process.env.CORS_ORIGINS ?? '')

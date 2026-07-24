@@ -1,8 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
 
 import { sendResponse } from '../../common/utils/response.util';
+import { UpdatePasswordDto } from './dto/update-password.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { User } from './entities/user.entity';
 
 @Injectable()
@@ -11,6 +19,118 @@ export class UsersService {
     @InjectRepository(User)
     private readonly users: Repository<User>,
   ) {}
+
+  /** Shape a User row into the payload the profile page consumes. */
+  private toProfile(user: User) {
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      mobileNumber: user.mobileNumber,
+      firstName: user.firstName,
+      middleName: user.middleName,
+      lastName: user.lastName,
+      streetAddress1: user.streetAddress1,
+      streetAddress2: user.streetAddress2,
+      city: user.city,
+      state: user.state,
+      country: user.country,
+      tier: user.tier,
+      role: user.role,
+      kycStatus: user.kycStatus,
+      isPin: Boolean(user.pinHash),
+    };
+  }
+
+  /** GET /users/profile — the authenticated user's own profile + tier. */
+  async getProfile(userId: string) {
+    const user = await this.users.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return sendResponse(this.toProfile(user), 'Profile retrieved successfully');
+  }
+
+  /**
+   * PATCH /users/profile — update the editable profile fields only. username,
+   * email and mobileNumber are not part of UpdateProfileDto and cannot be
+   * changed here.
+   */
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const user = await this.users.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Only assign keys the client actually sent (PATCH semantics).
+    const editable: (keyof UpdateProfileDto)[] = [
+      'firstName',
+      'middleName',
+      'lastName',
+      'streetAddress1',
+      'streetAddress2',
+      'city',
+      'state',
+      'country',
+    ];
+
+    const updates: Partial<Record<keyof UpdateProfileDto, string>> = {};
+
+    for (const key of editable) {
+      const value = dto[key];
+      if (value !== undefined) {
+        updates[key] = value.trim();
+      }
+    }
+
+    Object.assign(user, updates);
+
+    const saved = await this.users.save(user);
+
+    return sendResponse(this.toProfile(saved), 'Profile updated successfully');
+  }
+
+  /**
+   * PATCH /users/update_password — change password after verifying the current
+   * one. Google-only accounts (no password set) cannot use this route.
+   */
+  async updatePassword(userId: string, dto: UpdatePasswordDto) {
+    const user = await this.users.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (!user.passwordHash) {
+      throw new BadRequestException(
+        'This account has no password set. Sign in with Google or use forgot password.',
+      );
+    }
+
+    const currentMatches = await bcrypt.compare(
+      dto.oldPassword,
+      user.passwordHash,
+    );
+
+    if (!currentMatches) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    if (dto.oldPassword === dto.newPassword) {
+      throw new BadRequestException(
+        'New password must be different from the current password',
+      );
+    }
+
+    user.passwordHash = await bcrypt.hash(dto.newPassword, 12);
+
+    await this.users.save(user);
+
+    return sendResponse(null, 'Password updated successfully');
+  }
 
   async checkUsername(username: string) {
     const existingUser = await this.users.findOne({
