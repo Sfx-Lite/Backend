@@ -21,7 +21,12 @@ export class User extends BaseEntity {
   // Collected at password registration and checked for duplicates in the
   // service layer. Nullable and NOT DB-unique so Google-only accounts (which
   // never supply a phone number) can still be created.
-  @Column({ name: 'mobile_number', type: 'varchar', length: 20, nullable: true })
+  @Column({
+    name: 'mobile_number',
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+  })
   mobileNumber?: string | null;
 
   @Column({ name: 'password_hash', type: 'varchar', nullable: true })
@@ -46,11 +51,49 @@ export class User extends BaseEntity {
   @Column({ name: 'first_name', type: 'varchar', nullable: true })
   firstName?: string | null;
 
+  @Column({ name: 'middle_name', type: 'varchar', nullable: true })
+  middleName?: string | null;
+
   @Column({ name: 'last_name', type: 'varchar', nullable: true })
   lastName?: string | null;
 
+  @Column({ name: 'street_address_1', type: 'varchar', nullable: true })
+  streetAddress1?: string | null;
+
+  @Column({ name: 'street_address_2', type: 'varchar', nullable: true })
+  streetAddress2?: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  city?: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  state?: string | null;
+
   @Column({ type: 'varchar', nullable: true })
   country?: string | null;
+
+  /**
+   * Account tier gating limits/features. Defaults to 1; valid values are 1, 2
+   * and 3. Stored as a small integer so it is cheap to read on every profile
+   * fetch and easy to range-check.
+   */
+  @Column({ type: 'smallint', default: 1 })
+  tier!: number;
+
+  /**
+   * SHA-256 hash of the most recently issued password-reset token. The raw
+   * token is emailed to the user and never stored, so a database leak cannot
+   * be used to reset accounts. Cleared once the reset is consumed.
+   */
+  @Column({ name: 'password_reset_token', type: 'varchar', nullable: true })
+  passwordResetToken?: string | null;
+
+  @Column({
+    name: 'password_reset_expires_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  passwordResetExpiresAt?: Date | null;
 
   @Column({
     name: 'kyc_status',
