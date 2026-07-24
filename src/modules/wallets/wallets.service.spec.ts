@@ -2,6 +2,7 @@ import { ServiceUnavailableException } from '@nestjs/common';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 
 import { env } from '../../config/env';
+import { LedgerService } from '../ledger/ledger.service';
 import { Wallet } from './entities/wallet.entity';
 import { WalletsService } from './wallets.service';
 
@@ -28,12 +29,14 @@ describe('WalletsService', () => {
     save: jest.Mock;
   };
   let dataSource: { transaction: jest.Mock };
+  let ledger: { getBalance: jest.Mock };
   let service: WalletsService;
 
   const makeService = () =>
     new WalletsService(
       repo as unknown as Repository<Wallet>,
       dataSource as unknown as DataSource,
+      ledger as unknown as LedgerService,
     );
 
   beforeEach(() => {
@@ -46,6 +49,7 @@ describe('WalletsService', () => {
     };
 
     dataSource = { transaction: jest.fn() };
+    ledger = { getBalance: jest.fn() };
 
     service = makeService();
   });
@@ -113,6 +117,29 @@ describe('WalletsService', () => {
 
       expect(dataSource.transaction).toHaveBeenCalledTimes(1);
       expect(wallet.depositAddress).toBe(EXPECTED[0]);
+    });
+  });
+
+  describe('balanceForUser', () => {
+    it('returns the ledger balance with asset + network', async () => {
+      ledger.getBalance.mockResolvedValue('20.500000');
+
+      const result = await service.balanceForUser('user-1');
+
+      expect(ledger.getBalance).toHaveBeenCalledWith('user-1', 'USDC');
+      expect(result).toEqual({
+        asset: 'USDC',
+        network: 'polygon-amoy',
+        balance: '20.500000',
+      });
+    });
+
+    it('defaults to a zero balance when the user has no ledger entries', async () => {
+      ledger.getBalance.mockResolvedValue('0');
+
+      const result = await service.balanceForUser('user-1');
+
+      expect(result.balance).toBe('0');
     });
   });
 });
