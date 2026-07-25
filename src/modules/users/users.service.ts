@@ -1,11 +1,12 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
 import { sendResponse } from '../../common/utils/response.util';
@@ -55,9 +56,9 @@ export class UsersService {
   }
 
   /**
-   * PATCH /users/profile — update the editable profile fields only. username,
-   * email and mobileNumber are not part of UpdateProfileDto and cannot be
-   * changed here.
+   * PATCH /users/profile — update the editable profile fields only. username
+   * and email are not part of UpdateProfileDto and cannot be changed here.
+   * mobileNumber is editable but must stay unique across users.
    */
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     const user = await this.users.findOne({ where: { id: userId } });
@@ -88,6 +89,23 @@ export class UsersService {
     }
 
     Object.assign(user, updates);
+
+    // mobileNumber is editable but unique — reject a number already held by a
+    // different account before persisting.
+    if (dto.mobileNumber !== undefined) {
+      const mobileNumber = dto.mobileNumber.trim();
+
+      const clash = await this.users.findOne({
+        where: { mobileNumber, id: Not(userId) },
+        select: { id: true },
+      });
+
+      if (clash) {
+        throw new ConflictException('Mobile number already exists');
+      }
+
+      user.mobileNumber = mobileNumber;
+    }
 
     const saved = await this.users.save(user);
 
