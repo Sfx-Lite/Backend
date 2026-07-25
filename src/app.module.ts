@@ -20,6 +20,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { FxModule } from './modules/fx/fx.module';
 import { FeesModule } from './modules/fees/fees.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { HttpLoggerMiddleware } from './common/middleware/http-logger.middleware';
@@ -80,6 +81,7 @@ import { THROTTLER_IP, THROTTLER_USER } from './common/constants';
     KycModule,
     FxModule,
     FeesModule,
+     UploadsModule,
   ],
 
   providers: [
