@@ -2,42 +2,70 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
 
+import { User } from '../users/entities/user.entity';
+import { UserRole } from '../users/enums/user-role.enum';
 import { Notification } from './entities/notification.entity';
 
-export interface CreateNotificationInput {
+export interface CreateNotificationOptions {
   userId: string;
-  /** Category, e.g. 'deposit' | 'transfer' | 'withdrawal' | 'kyc'. */
   type: string;
   title: string;
   body: string;
 }
 
-/**
- * NotificationsService — Squad A (Identity & KYC owns the module; consumed by
- * every squad). Minimal create() scaffolded here so Squad B's deposit watcher
- * can notify a user when funds land. Read/list/mark-read endpoints are
- * Abdulsalam's to add on top.
- */
+export interface CreateAdminNotificationOptions {
+  type: string;
+  title: string;
+  body: string;
+}
+
 @Injectable()
 export class NotificationsService {
   constructor(
     @InjectRepository(Notification)
     private readonly notifications: Repository<Notification>,
+    @InjectRepository(User)
+    private readonly users: Repository<User>,
   ) {}
 
-  /**
-   * Persist an in-app notification. Pass a `manager` to fire it inside the same
-   * transaction as the event it describes (e.g. the deposit credit), so a user
-   * is never notified about a movement that rolled back.
-   */
   async create(
-    input: CreateNotificationInput,
-    manager?: EntityManager,
+    options: CreateNotificationOptions,
+    entityManager?: EntityManager,
   ): Promise<Notification> {
-    const repo = manager
-      ? manager.getRepository(Notification)
+    const repository = entityManager
+      ? entityManager.getRepository(Notification)
       : this.notifications;
 
-    return repo.save(repo.create(input));
+    const notification = repository.create(options);
+
+    return repository.save(notification);
+  }
+
+  async createForAdmins(
+    options: CreateAdminNotificationOptions,
+  ): Promise<Notification[]> {
+    const admins = await this.users.find({
+      where: {
+        role: UserRole.ADMIN,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (admins.length === 0) {
+      return [];
+    }
+
+    const notifications = admins.map((admin) =>
+      this.notifications.create({
+        userId: admin.id,
+        type: options.type,
+        title: options.title,
+        body: options.body,
+      }),
+    );
+
+    return this.notifications.save(notifications);
   }
 }
