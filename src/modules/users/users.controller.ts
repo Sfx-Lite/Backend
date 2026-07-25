@@ -41,7 +41,8 @@ export class UsersController {
     summary: 'Update the authenticated user’s profile',
     description:
       'Updates the editable profile fields (first/middle/last name, address, ' +
-      'city, state, country). username, email and mobileNumber are not ' +
+      'city, state, country, and mobileNumber). mobileNumber must be a valid ' +
+      'E.164 number and unique across users. username and email are not ' +
       'editable — they are not accepted by this endpoint. Requires a valid ' +
       'access token.',
   })
