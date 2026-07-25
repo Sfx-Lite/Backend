@@ -73,6 +73,12 @@ export const env = {
     fromEmail: process.env.RESEND_FROM_EMAIL,
   },
 
+  cloudinary: {
+  cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+  apiKey: process.env.CLOUDINARY_API_KEY,
+  apiSecret: process.env.CLOUDINARY_API_SECRET,
+},
+
   chain: {
     rpcUrl: process.env.ALCHEMY_AMOY_RPC_URL,
     masterMnemonic: process.env.MASTER_WALLET_MNEMONIC,
