@@ -1,8 +1,19 @@
 import { Injectable } from '@nestjs/common';
+import { UsersService } from '../users/users.service';
+import { AdminStatsResponseDto } from './dto/admin-stats-response.dto';
 
 @Injectable()
 export class AdminStatsService {
-  constructor() {}
+  constructor(private readonly usersService: UsersService) {}
 
-  async getOverviewStats() {}
+  async getStats(): Promise<AdminStatsResponseDto> {
+    const users = await this.usersService.getUserStats();
+
+    return {
+      users,
+      pendingKyc: null,
+      volume: null,
+      masterWallet: null,
+    };
+  }
 }

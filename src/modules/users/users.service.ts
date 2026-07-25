@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Repository, IsNull, Not } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
 import { sendResponse } from '../../common/utils/response.util';
@@ -181,5 +181,18 @@ export class UsersService {
     });
 
     return new Map(rows.map((u) => [u.id, u.username]));
+  }
+
+  async getUserStats(): Promise<{
+    total: number;
+    active: number;
+    inactive: number;
+  }> {
+    const [total, inactive] = await Promise.all([
+      this.users.count(),
+      this.users.count({ where: { suspendedAt: Not(IsNull()) } }),
+    ]);
+
+    return { total, active: total - inactive, inactive };
   }
 }
