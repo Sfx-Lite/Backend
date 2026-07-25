@@ -68,16 +68,25 @@ export const env = {
     callbackUrl: process.env.GOOGLE_CALLBACK_URL,
   },
 
+  // Root admin (RBAC). The only self-provisioning admin: on first login with
+  // this email — password matching rootPassword — a super_admin account is
+  // created. Thereafter it logs in like any account against its stored hash.
+  admin: {
+    rootEmail: process.env.ROOT_ADMIN_EMAIL,
+    rootPassword: process.env.ROOT_ADMIN_PASSWORD,
+    rootUsername: process.env.ROOT_ADMIN_USERNAME,
+  },
+
   email: {
     resendApiKey: process.env.RESEND_API_KEY,
     fromEmail: process.env.RESEND_FROM_EMAIL,
   },
 
   cloudinary: {
-  cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-  apiKey: process.env.CLOUDINARY_API_KEY,
-  apiSecret: process.env.CLOUDINARY_API_SECRET,
-},
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    apiSecret: process.env.CLOUDINARY_API_SECRET,
+  },
 
   chain: {
     rpcUrl: process.env.ALCHEMY_AMOY_RPC_URL,
@@ -97,27 +106,17 @@ export const env = {
     coldStartLookback: int(process.env.COLD_START_LOOKBACK, 120),
   },
 
-
   fees: {
-  localPercentage: Number(
-    process.env.LOCAL_TRANSFER_FEE_PERCENTAGE ?? 0.01,
-  ),
+    localPercentage: Number(process.env.LOCAL_TRANSFER_FEE_PERCENTAGE ?? 0.01),
 
-  internationalPercentage: Number(
-    process.env.INTERNATIONAL_TRANSFER_FEE_PERCENTAGE ?? 0.02,
-  ),
+    internationalPercentage: Number(
+      process.env.INTERNATIONAL_TRANSFER_FEE_PERCENTAGE ?? 0.02,
+    ),
 
-  minimumFee: Number(
-    process.env.MINIMUM_TRANSFER_FEE ?? 0.5,
-  ),
+    minimumFee: Number(process.env.MINIMUM_TRANSFER_FEE ?? 0.5),
 
-  maximumFee: Number(
-    process.env.MAXIMUM_TRANSFER_FEE ?? 25,
-  ),
-},
-
+    maximumFee: Number(process.env.MAXIMUM_TRANSFER_FEE ?? 25),
+  },
 } as const;
-
-
 
 export type Env = typeof env;

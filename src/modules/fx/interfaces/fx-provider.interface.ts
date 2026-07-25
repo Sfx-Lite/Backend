@@ -5,11 +5,8 @@
  * the rest of the application.
  */
 export interface FxProvider {
-
   /**
    * Fetch exchange rates.
    */
-  getRates(
-    baseCurrency: string,
-  ): Promise<Record<string, number>>;
+  getRates(baseCurrency: string): Promise<Record<string, number>>;
 }

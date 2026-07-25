@@ -115,6 +115,7 @@
       <li><a href="#database">Database &amp; migrations</a></li>
       <li><a href="#datamodel">Data model — entities &amp; core schema</a></li>
       <li><a href="#conventions">Conventions, scripts &amp; cheat sheet</a></li>
+      <li><a href="#rbac-kyc-fx">RBAC, KYC review &amp; FX rates (Week 1–2)</a></li>
       <li><a href="#roadmap">Squad roadmap</a></li>
     </ol>
   </div>
@@ -518,7 +519,7 @@ npm run migration:revert                                       # roll back the l
 
   <table>
     <tr><th>Table</th><th>Purpose</th><th>Key columns / notes</th></tr>
-    <tr><td><code>users</code></td><td>Account + profile + KYC status</td><td>unique <code>username</code>/<code>email</code>/<code>google_id</code>; <code>password_hash</code> null for Google-only; <code>role</code>, <code>kyc_status</code> enums; <code>pin_hash</code>.</td></tr>
+    <tr><td><code>users</code></td><td>Account + profile + KYC status</td><td>unique <code>username</code>/<code>email</code>/<code>google_id</code>; <code>password_hash</code> null for Google-only; <code>role</code> (<code>user</code>/<code>admin</code>/<code>super_admin</code>), <code>kyc_status</code> enums; <code>pin_hash</code>.</td></tr>
     <tr><td><code>kyc_submissions</code></td><td>Uploaded doc + selfie per review</td><td><code>doc_type</code>, <code>status</code> enums; <code>reviewed_by</code> → admin.</td></tr>
     <tr><td><code>wallets</code></td><td>One deposit address per user</td><td>unique <code>deposit_address</code>; <code>derivation_index</code>; <code>swept_balance_usdc</code> numeric(18,6).</td></tr>
     <tr><td><code>ledger_entries</code></td><td>Append-only double-entry ledger</td><td><code>direction</code> debit/credit; <code>amount_usdc</code>, <code>balance_after</code> numeric(18,6); columns are <code>update:false</code>.</td></tr>
@@ -567,7 +568,46 @@ npm run migration:revert                                       # roll back the l
     <tr><td>Logging</td><td>Never log request bodies (KYC/credentials). Use the request id to trace issues.</td></tr>
   </table>
 
-  <h2 id="roadmap">14 · Squad roadmap</h2>
+  <h2 id="rbac-kyc-fx">14 · RBAC, KYC review &amp; FX rates (Week 1–2)</h2>
+  <p>These three flows landed (and were repaired) in the Week 1–2 push. This section is the quick reference for how they work end to end.</p>
+
+  <h3>Role-based access control</h3>
+  <p>Two global guards run on every request in order: <code>JwtAuthGuard</code> (authenticates the bearer token and puts the claims on <code>request.user</code>) then <code>RolesGuard</code> (authorizes). A route opts into a role with <code>@Roles(UserRole.ADMIN)</code>; routes with no <code>@Roles()</code> are open to any authenticated user, and <code>@Public()</code> skips auth entirely.</p>
+  <p>There are three roles with a strict hierarchy — a higher role satisfies every check beneath it, so a <code>super_admin</code> passes any <code>@Roles('admin')</code> gate without routes having to list both:</p>
+  <table>
+    <tr><th>Role</th><th>Satisfies</th><th>Notes</th></tr>
+    <tr><td><code>user</code></td><td><code>user</code></td><td>Default for every registered account.</td></tr>
+    <tr><td><code>admin</code></td><td><code>admin</code>, <code>user</code></td><td>Governs KYC, users, transactions.</td></tr>
+    <tr><td><code>super_admin</code></td><td><code>super_admin</code>, <code>admin</code>, <code>user</code></td><td>The root admin (see below). Can do everything an admin can.</td></tr>
+  </table>
+
+  <div class="callout tip">
+    <b>Separate admin login — no self-serve admin signup.</b>
+    Admins never authenticate through the public <code>POST /auth/login</code>; that endpoint is for regular users and rejects any admin/super_admin account with <code>403</code>. Admins sign in through their own endpoint, <code>POST /auth/admin/login</code>, which accepts only admin/super_admin accounts. Set <code>ROOT_ADMIN_EMAIL</code> and <code>ROOT_ADMIN_PASSWORD</code> in the environment: logging in with that email at <code>/auth/admin/login</code> creates the account as a <code>super_admin</code> the first time (only if the submitted password matches <code>ROOT_ADMIN_PASSWORD</code>, so only the secret-holder can provision it), and verifies the password normally thereafter. Root provisioning happens <i>only</i> on the admin endpoint. Every other admin is promoted by a super_admin — never self-registered.
+  </div>
+
+  <h3>KYC review flow</h3>
+  <p>A submission moves through a small state machine: <code>pending → under_review → approved / rejected</code>. The <code>users.kyc_status</code> column is kept in lockstep (<code>pending</code> while queued/under review, <code>verified</code> or <code>rejected</code> on decision). A user may only have one submission in flight; once approved or rejected they can resubmit.</p>
+  <table>
+    <tr><th>Endpoint</th><th>Who</th><th>Does</th></tr>
+    <tr><td><code>POST /api/v1/kyc/submission</code></td><td>User</td><td>Multipart upload of <code>doc</code> + <code>selfie</code> (+ <code>docType</code>). Stores them privately (Cloudinary) and opens a <code>pending</code> row.</td></tr>
+    <tr><td><code>GET /api/v1/kyc/status</code></td><td>User</td><td>The caller's own <code>kyc_status</code> plus a summary of their most recent submission (<code>docType</code>, <code>status</code>, rejection <code>reason</code>, timestamps). Private document URLs are never exposed.</td></tr>
+    <tr><td><code>GET /api/v1/kyc/submission?status=pending</code></td><td>Admin</td><td>The review queue, oldest-first. Optional <code>status</code> filter.</td></tr>
+    <tr><td><code>GET /api/v1/kyc/submission/:id</code></td><td>Admin</td><td>Opens one submission (doc + selfie for side-by-side review). Opening a <code>pending</code> submission claims it → <code>under_review</code>.</td></tr>
+    <tr><td><code>PATCH /api/v1/kyc/submission/:id/status</code></td><td>Admin</td><td>Approve or reject (a <code>reason</code> is required to reject). Fires an in-app notification <b>and</b> an email to the user.</td></tr>
+  </table>
+  <div class="callout warn">
+    <b>Decisions require an open submission.</b>
+    Only an <code>under_review</code> submission can be approved or rejected — the admin must open the detail view (which claims it) before deciding. Approving/rejecting straight from <code>pending</code> is rejected by the state machine on purpose.
+  </div>
+
+  <h3>FX rates (informational)</h3>
+  <p>Rates are display-only quotes against USD (≈ USDC). A scheduled job pulls them from the exchangerate-api.com open endpoint (free, no key, and — unlike ECB/Frankfurter — it covers NGN and KES) and stores one row per supported currency: <code>USD, NGN, TRY, EUR, GBP, ZAR, KES</code>. The job runs once at boot and every 30 minutes, so rates exist immediately even after a free-tier cold start.</p>
+  <pre><code>GET /api/v1/fx/latest?base=USD&amp;quote=NGN
+GET /api/v1/fx/latest?base=NGN&amp;quote=KES   // pivots through USD</code></pre>
+  <p>Because the rates are informational, a stale rate is logged and still served rather than failing the request — a hard 5xx on a display number is never worth it.</p>
+
+  <h2 id="roadmap">15 · Squad roadmap</h2>
   <p>Feature modules land in <code>src/modules/</code> and get registered in <code>app.module.ts</code> as squads ship them:</p>
   <table>
     <tr><th>Squad</th><th>Modules</th></tr>

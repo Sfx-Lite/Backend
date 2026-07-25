@@ -4,6 +4,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Repository } from 'typeorm';
 
 import { EmailService } from '../email/email.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { User } from '../users/entities/user.entity';
 import { KycStatus } from '../users/enums/kyc-status.enum';
@@ -24,6 +25,8 @@ describe('KycService', () => {
   let emailService: jest.Mocked<Pick<EmailService, 'send'>>;
 
   let uploadsService: jest.Mocked<Pick<UploadsService, 'uploadImage'>>;
+
+  let notificationsService: jest.Mocked<Pick<NotificationsService, 'create'>>;
 
   beforeEach(async () => {
     submissionRepository = {
@@ -50,6 +53,11 @@ describe('KycService', () => {
       uploadImage: jest.fn(),
     };
 
+    notificationsService = {
+      create: jest.fn(),
+    };
+    notificationsService.create.mockResolvedValue({} as never);
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         KycService,
@@ -68,6 +76,10 @@ describe('KycService', () => {
         {
           provide: UploadsService,
           useValue: uploadsService,
+        },
+        {
+          provide: NotificationsService,
+          useValue: notificationsService,
         },
       ],
     }).compile();
@@ -111,8 +123,8 @@ describe('KycService', () => {
     } as User;
 
     submissionRepository.findOne.mockResolvedValue(submission);
-    submissionRepository.save.mockImplementation((value: KycSubmission) =>
-      Promise.resolve(value),
+    submissionRepository.save.mockImplementation((value) =>
+      Promise.resolve(value as KycSubmission),
     );
     userRepository.findOne.mockResolvedValue(user);
     emailService.send.mockResolvedValue('email-123');
@@ -155,6 +167,13 @@ describe('KycService', () => {
         subject: 'Your KYC verification has been approved',
       }),
     );
+
+    expect(notificationsService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        type: 'kyc',
+      }),
+    );
   });
 
   it('rejects an under-review submission and sends the rejection reason', async () => {
@@ -175,8 +194,8 @@ describe('KycService', () => {
     } as User;
 
     submissionRepository.findOne.mockResolvedValue(submission);
-    submissionRepository.save.mockImplementation((value: KycSubmission) =>
-      Promise.resolve(value),
+    submissionRepository.save.mockImplementation((value) =>
+      Promise.resolve(value as KycSubmission),
     );
     userRepository.findOne.mockResolvedValue(user);
     emailService.send.mockResolvedValue('email-123');
@@ -287,8 +306,8 @@ describe('KycService', () => {
     } as User;
 
     submissionRepository.findOne.mockResolvedValue(submission);
-    submissionRepository.save.mockImplementation((value: KycSubmission) =>
-      Promise.resolve(value),
+    submissionRepository.save.mockImplementation((value) =>
+      Promise.resolve(value as KycSubmission),
     );
     userRepository.findOne.mockResolvedValue(user);
     emailService.send.mockRejectedValue(new Error('Provider unavailable'));
@@ -318,8 +337,8 @@ describe('KycService', () => {
     } as KycSubmission;
 
     submissionRepository.findOne.mockResolvedValue(submission);
-    submissionRepository.save.mockImplementation((value: KycSubmission) =>
-      Promise.resolve(value),
+    submissionRepository.save.mockImplementation((value) =>
+      Promise.resolve(value as KycSubmission),
     );
     userRepository.findOne.mockResolvedValue(null);
 

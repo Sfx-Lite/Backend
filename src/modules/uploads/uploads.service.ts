@@ -68,23 +68,21 @@ export class UploadsService {
     await this.validateImage(file);
 
     try {
-      const result = await new Promise<UploadApiResponse>(
-        (resolve, reject) => {
-          const stream = cloudinary.uploader.upload_stream(
-            {
-              folder,
-              resource_type: 'image',
-            },
-            (error, result) => {
-              if (error) return reject(error);
-              if (!result) return reject(new Error('Upload failed'));
-              resolve(result);
-            },
-          );
+      const result = await new Promise<UploadApiResponse>((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder,
+            resource_type: 'image',
+          },
+          (error, result) => {
+            if (error) return reject(new Error(error.message));
+            if (!result) return reject(new Error('Upload failed'));
+            resolve(result);
+          },
+        );
 
-          Readable.from(file.buffer).pipe(stream);
-        },
-      );
+        Readable.from(file.buffer).pipe(stream);
+      });
 
       return {
         url: result.secure_url,

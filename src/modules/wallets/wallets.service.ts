@@ -152,10 +152,7 @@ export class WalletsService {
    * confirmed deposits, transfers and withdrawals, NOT the raw on-chain balance
    * of the deposit address (funds there are swept into the master wallet).
    */
-  async balanceForUser(
-    userId: string,
-    asset = 'USDC',
-  ): Promise<WalletBalance> {
+  async balanceForUser(userId: string, asset = 'USDC'): Promise<WalletBalance> {
     const balance = await this.ledger.getBalance(userId, asset);
     return { asset, network: 'polygon-amoy', balance };
   }

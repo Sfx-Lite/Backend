@@ -16,20 +16,14 @@ export default () => ({
   },
 
   fees: {
-    localPercentage: Number(
-      process.env.LOCAL_TRANSFER_FEE_PERCENTAGE ?? 0.01,
-    ),
+    localPercentage: Number(process.env.LOCAL_TRANSFER_FEE_PERCENTAGE ?? 0.01),
 
     internationalPercentage: Number(
       process.env.INTERNATIONAL_TRANSFER_FEE_PERCENTAGE ?? 0.02,
     ),
 
-    minimumFee: Number(
-      process.env.MINIMUM_TRANSFER_FEE ?? 0.5,
-    ),
+    minimumFee: Number(process.env.MINIMUM_TRANSFER_FEE ?? 0.5),
 
-    maximumFee: Number(
-      process.env.MAXIMUM_TRANSFER_FEE ?? 25,
-    ),
+    maximumFee: Number(process.env.MAXIMUM_TRANSFER_FEE ?? 25),
   },
 });

@@ -62,11 +62,16 @@ export class TransfersService {
    *  - 422 (InsufficientFundsException, from the ledger) if the sender can't
    *    cover it — which rolls the whole posting back.
    */
-  async transfer(senderId: string, input: TransferInput): Promise<TransferResult> {
+  async transfer(
+    senderId: string,
+    input: TransferInput,
+  ): Promise<TransferResult> {
     const asset = TransfersService.ASSET;
 
     if (!isPositiveMoney(input.amount)) {
-      throw new BadRequestException('Transfer amount must be greater than zero');
+      throw new BadRequestException(
+        'Transfer amount must be greater than zero',
+      );
     }
     const amount = normalizeMoney(input.amount);
 
@@ -126,7 +131,10 @@ export class TransfersService {
         em,
       );
 
-      return { transactionId: transaction.id, balanceAfter: debit.balanceAfter };
+      return {
+        transactionId: transaction.id,
+        balanceAfter: debit.balanceAfter,
+      };
     });
 
     this.logger.log(

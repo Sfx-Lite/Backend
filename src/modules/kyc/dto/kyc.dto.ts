@@ -3,6 +3,7 @@ import {
   IsEnum,
   IsIn,
   IsNotEmpty,
+  IsOptional,
   IsString,
   MaxLength,
   ValidateIf,
@@ -16,6 +17,14 @@ export class CreateKycSubmissionDto {
     message: 'docType must be either passport or national_id',
   })
   docType!: KycDocType;
+}
+
+export class ListKycSubmissionsQueryDto {
+  @IsOptional()
+  @IsEnum(KycSubmissionStatus, {
+    message: 'status must be one of: pending, under_review, approved, rejected',
+  })
+  status?: KycSubmissionStatus;
 }
 
 const REVIEW_OUTCOMES = [

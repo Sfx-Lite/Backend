@@ -6,7 +6,6 @@
  */
 
 export const FEE_CONFIG = {
-
   /**
    * Fixed fee charged per transaction.
    */
@@ -26,5 +25,4 @@ export const FEE_CONFIG = {
    * Minimum fee.
    */
   MIN_FEE: 50,
-
 };

@@ -76,7 +76,13 @@ export class NotificationsService {
       where: { userId, readAt: IsNull() },
     });
 
-    return { items, total, limit: query.limit, offset: query.offset, unreadCount };
+    return {
+      items,
+      total,
+      limit: query.limit,
+      offset: query.offset,
+      unreadCount,
+    };
   }
 
   /**
@@ -85,7 +91,10 @@ export class NotificationsService {
    * Ownership is enforced here (userId must match), so a user can never mark
    * -- or even discover the existence of -- another user's notification by id.
    */
-  async markAsRead(userId: string, notificationId: string): Promise<Notification> {
+  async markAsRead(
+    userId: string,
+    notificationId: string,
+  ): Promise<Notification> {
     const notification = await this.notifications.findOne({
       where: { id: notificationId, userId },
     });

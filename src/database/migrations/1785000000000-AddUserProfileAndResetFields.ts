@@ -5,9 +5,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * account `tier` (defaults to 1), and the password-reset token fields to the
  * users table.
  */
-export class AddUserProfileAndResetFields1785000000000
-  implements MigrationInterface
-{
+export class AddUserProfileAndResetFields1785000000000 implements MigrationInterface {
   name = 'AddUserProfileAndResetFields1785000000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -21,7 +19,9 @@ export class AddUserProfileAndResetFields1785000000000
       `ALTER TABLE "users" ADD "street_address_2" character varying`,
     );
     await queryRunner.query(`ALTER TABLE "users" ADD "city" character varying`);
-    await queryRunner.query(`ALTER TABLE "users" ADD "state" character varying`);
+    await queryRunner.query(
+      `ALTER TABLE "users" ADD "state" character varying`,
+    );
     await queryRunner.query(
       `ALTER TABLE "users" ADD "tier" smallint NOT NULL DEFAULT '1'`,
     );
