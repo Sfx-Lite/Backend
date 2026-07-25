@@ -1,3 +1,5 @@
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { KycModule } from './modules/kyc/kyc.module';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
@@ -63,6 +65,7 @@ import { THROTTLER_IP, THROTTLER_USER } from './common/constants';
     }),
 
     ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot(),
     CacheModule,
     DatabaseModule,
     HealthModule,
@@ -74,6 +77,7 @@ import { THROTTLER_IP, THROTTLER_USER } from './common/constants';
     AnalyticsModule,
     AdminModule,
     KycModule,
+    NotificationsModule,
   ],
 
   providers: [
