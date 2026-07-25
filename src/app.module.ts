@@ -1,3 +1,4 @@
+import { KycModule } from './modules/kyc/kyc.module';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
@@ -14,6 +15,7 @@ import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { WalletsModule } from './modules/wallets/wallets.module';
+import { LedgerModule } from './modules/ledger/ledger.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AdminModule } from './modules/admin/admin.module';
 
@@ -68,8 +70,10 @@ import { THROTTLER_IP, THROTTLER_USER } from './common/constants';
     AuthModule,
     UsersModule,
     WalletsModule,
+    LedgerModule,
     AnalyticsModule,
     AdminModule,
+    KycModule,
   ],
 
   providers: [

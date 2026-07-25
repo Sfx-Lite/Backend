@@ -34,4 +34,7 @@ export const envValidationSchema = Joi.object({
   REDIS_URL: Joi.string().uri().allow('').optional(),
   CACHE_TTL_SECONDS: Joi.number().min(1).default(60),
   CACHE_MAX_ITEMS: Joi.number().min(1).default(1000),
+
+  RESEND_API_KEY: Joi.string().trim().allow('').optional(),
+  RESEND_FROM_EMAIL: Joi.string().trim().allow('').optional(),
 });
