@@ -12,4 +12,5 @@ export class AdminController {
       message: 'Admin access granted',
     };
   }
+  async getStats() {}
 }

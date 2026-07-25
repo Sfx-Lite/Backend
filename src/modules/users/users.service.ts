@@ -25,4 +25,6 @@ export class UsersService {
       available ? 'Username is available' : 'Username is already taken',
     );
   }
+
+  async getAllUserStatus() {}
 }
