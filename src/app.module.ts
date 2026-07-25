@@ -18,6 +18,7 @@ import { WalletsModule } from './modules/wallets/wallets.module';
 import { LedgerModule } from './modules/ledger/ledger.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { HttpLoggerMiddleware } from './common/middleware/http-logger.middleware';
@@ -75,6 +76,7 @@ import { THROTTLER_IP, THROTTLER_USER } from './common/constants';
     AnalyticsModule,
     AdminModule,
     KycModule,
+     UploadsModule,
   ],
 
   providers: [

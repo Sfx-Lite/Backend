@@ -15,18 +15,56 @@ import { ReviewKycSubmissionDto } from './dto/kyc.dto';
 import { KycSubmission } from './entities/kyc-submission.entity';
 import { KycSubmissionStatus } from './enums/kyc-submission-status.enum';
 import { assertValidKycStatusTransition } from './utils/kyc-status-machine';
+import { CreateKycSubmissionDto } from './dto/create-kyc-submission.dto';
+import { UploadsService } from '../uploads/uploads.service';
 
 @Injectable()
 export class KycService {
   private readonly logger = new Logger(KycService.name);
 
-  constructor(
-    @InjectRepository(KycSubmission)
-    private readonly submissions: Repository<KycSubmission>,
-    @InjectRepository(User)
-    private readonly users: Repository<User>,
-    private readonly emailService: EmailService,
-  ) {}
+ constructor(
+  @InjectRepository(KycSubmission)
+  private readonly submissions: Repository<KycSubmission>,
+
+  @InjectRepository(User)
+  private readonly users: Repository<User>,
+
+  private readonly emailService: EmailService,
+
+  private readonly uploadsService: UploadsService,
+) {}
+
+async submitKyc(
+  userId: string,
+  dto: CreateKycSubmissionDto,
+  document: Express.Multer.File,
+  selfie: Express.Multer.File,
+) {
+  const documentUpload = await this.uploadsService.uploadImage(
+    document,
+    'kyc/documents',
+  );
+
+  const selfieUpload = await this.uploadsService.uploadImage(
+    selfie,
+    'kyc/selfies',
+  );
+
+  const submission = this.submissions.create({
+    userId,
+    docType: dto.docType,
+    docUrl: documentUpload.url,
+    selfieUrl: selfieUpload.url,
+    status: KycSubmissionStatus.PENDING,
+  });
+
+  const savedSubmission = await this.submissions.save(submission);
+
+  return sendResponse(
+    savedSubmission,
+    'KYC submission created successfully',
+  );
+}
 
   async reviewSubmission(
     submissionId: string,
