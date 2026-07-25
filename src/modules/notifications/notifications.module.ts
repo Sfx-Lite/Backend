@@ -1,16 +1,14 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { User } from '../users/entities/user.entity';
 import { Notification } from './entities/notification.entity';
+import { KycSubmissionReceivedListener } from './listeners/kyc-submission-received.listener';
 import { NotificationsService } from './notifications.service';
 
-/**
- * NotificationsModule — Squad A. Exports NotificationsService so any squad can
- * emit in-app notifications (deposits, transfers, KYC decisions, …).
- */
 @Module({
-  imports: [TypeOrmModule.forFeature([Notification])],
-  providers: [NotificationsService],
+  imports: [TypeOrmModule.forFeature([Notification, User])],
+  providers: [NotificationsService, KycSubmissionReceivedListener],
   exports: [NotificationsService],
 })
 export class NotificationsModule {}
