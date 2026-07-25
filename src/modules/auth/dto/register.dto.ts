@@ -1,7 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsPhoneNumber, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsString, Matches, MinLength } from 'class-validator';
 
 import { IsStrongPassword } from '../../../common/decorators/is-strong-password.decorator';
+
+/**
+ * Permissive international phone format (shared rule with UpdateProfileDto): an
+ * optional leading "+", then 7–20 characters of digits and common separators
+ * (spaces, dashes, parentheses). Country-agnostic — numbers from every country
+ * are accepted, with no per-region format enforced.
+ */
+const PHONE_REGEX = /^\+?[0-9][0-9\s().-]{5,18}$/;
 
 /**
  * RegisterDto — Squad A
@@ -24,17 +32,22 @@ export class RegisterDto {
   email!: string;
 
   /**
-   * Any country is supported. `@IsPhoneNumber()` with no region argument
-   * accepts a valid international number for ANY country, but it must be in
-   * E.164 format (leading "+" and country code), e.g. +2348012345678 (NG),
-   * +14155552671 (US), +447911123456 (GB).
+   * Any country is supported. We accept an optional leading "+" followed by
+   * 7–20 characters of digits and common separators (spaces, dashes,
+   * parentheses) — e.g. +2348012345678 (NG), +1 (415) 555-2671 (US),
+   * 07911 123456 (GB). No per-region format is enforced, so no country is
+   * rejected.
    */
   @ApiProperty({
     example: '+2348012345678',
-    description: 'International phone number in E.164 format (any country).',
+    description:
+      'International phone number, any country. Optional leading "+" then ' +
+      '7–20 digits (spaces, dashes and parentheses allowed).',
   })
   @IsString()
-  @IsPhoneNumber()
+  @Matches(PHONE_REGEX, {
+    message: 'mobileNumber must be a valid phone number',
+  })
   mobileNumber!: string;
 
   @ApiProperty({ example: 'John' })
