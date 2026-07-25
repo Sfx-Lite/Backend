@@ -111,9 +111,7 @@ describe('DepositWatcherService', () => {
   describe('scanOnce', () => {
     it('maps confirmed transfers to users and hands them to handleDeposit', async () => {
       chain.getBlockNumber.mockResolvedValue(1000);
-      wallets.find.mockResolvedValue([
-        { userId: USER, depositAddress: ADDR },
-      ]);
+      wallets.find.mockResolvedValue([{ userId: USER, depositAddress: ADDR }]);
       chain.queryUsdcTransfersTo.mockResolvedValue([transfer]);
 
       const handle = jest

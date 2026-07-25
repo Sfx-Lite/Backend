@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 
@@ -39,7 +35,7 @@ export interface PostOptions {
 }
 
 /**
- * LedgerService 
+ * LedgerService
  * ──────────────────────────────────────────────────────────────────
  * The append-only, double-entry ledger every money flow is built on:
  *   • deposit watcher credits a user when USDC confirms on-chain
@@ -274,10 +270,10 @@ export class LedgerService {
 
     for (const key of keys) {
       // hashtext() maps each identifier to an int4 lock classid/objid pair.
-      await em.query('SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', [
-        key,
-        'ledger',
-      ]);
+      await em.query(
+        'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
+        [key, 'ledger'],
+      );
     }
   }
 }

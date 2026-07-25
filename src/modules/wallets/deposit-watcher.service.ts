@@ -100,8 +100,7 @@ export class DepositWatcherService {
     }
 
     const fromBlock =
-      this.nextFromBlock ??
-      Math.max(0, safeHead - env.chain.coldStartLookback);
+      this.nextFromBlock ?? Math.max(0, safeHead - env.chain.coldStartLookback);
     if (fromBlock > safeHead) {
       return; // nothing new has reached the confirmation threshold
     }

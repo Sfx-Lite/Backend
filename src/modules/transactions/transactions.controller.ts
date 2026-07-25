@@ -8,9 +8,11 @@ import {
   Post,
   Query,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -18,13 +20,11 @@ import {
 } from '@nestjs/swagger';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { KycVerifiedGuard } from '../../common/guards/kyc-verified.guard';
 import { sendResponse } from '../../common/utils/response.util';
 import { ListTransactionsQueryDto } from './dto/list-transactions.query.dto';
 import { TransferDto } from './dto/transfer.dto';
-import {
-  counterpartyIdOf,
-  toTransactionView,
-} from './transaction-view';
+import { counterpartyIdOf, toTransactionView } from './transaction-view';
 import { TransactionsService } from './transactions.service';
 import { TransfersService } from './transfers.service';
 import { UsersService } from '../users/users.service';
@@ -83,13 +83,18 @@ export class TransactionsController {
 
   // POST /api/v1/transactions/transfer
   @Post('transfer')
+  @UseGuards(KycVerifiedGuard)
   @ApiOperation({
     summary: 'Send USDC to another SFx Lite user (internal, off-chain)',
+    description:
+      'Requires a verified KYC status — sending is locked until the user is ' +
+      'verified. Deposits and receiving remain open pre-KYC.',
   })
-  async transfer(
-    @CurrentUser('sub') userId: string,
-    @Body() dto: TransferDto,
-  ) {
+  @ApiForbiddenResponse({
+    description:
+      'KYC not verified — the caller must complete identity verification to send.',
+  })
+  async transfer(@CurrentUser('sub') userId: string, @Body() dto: TransferDto) {
     if (!userId) {
       throw new UnauthorizedException();
     }

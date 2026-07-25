@@ -12,6 +12,7 @@ import { sendResponse } from '../../common/utils/response.util';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { User } from './entities/user.entity';
+import { KycStatus } from './enums/kyc-status.enum';
 
 @Injectable()
 export class UsersService {
@@ -163,6 +164,19 @@ export class UsersService {
       where: { id },
       select: { id: true, username: true },
     });
+  }
+
+  /**
+   * KYC status for a single user, or null if the user does not exist. Used by
+   * KycVerifiedGuard to gate identity-restricted actions (send, withdraw).
+   */
+  async getKycStatus(id: string): Promise<KycStatus | null> {
+    const user = await this.users.findOne({
+      where: { id },
+      select: { id: true, kycStatus: true },
+    });
+
+    return user?.kycStatus ?? null;
   }
 
   /**

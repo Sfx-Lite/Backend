@@ -1,7 +1,4 @@
-import {
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 
 import { LedgerService } from '../ledger/ledger.service';
@@ -32,7 +29,10 @@ describe('TransfersService', () => {
     ledger = {
       transfer: jest
         .fn()
-        .mockResolvedValue([{ balanceAfter: '5.000000' }, { balanceAfter: '15.000000' }]),
+        .mockResolvedValue([
+          { balanceAfter: '5.000000' },
+          { balanceAfter: '15.000000' },
+        ]),
     };
     notifications = { create: jest.fn().mockResolvedValue(undefined) };
     // Run the callback with a dummy EntityManager, like a real DB transaction.
