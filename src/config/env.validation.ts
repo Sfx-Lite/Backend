@@ -76,3 +76,11 @@ if (validationResult.error) {
 }
 
 export const validatedEnv = validationResult.value;
+  // Cache is optional — omit REDIS_URL to run on the in-memory fallback.
+  REDIS_URL: Joi.string().uri().allow('').optional(),
+  CACHE_TTL_SECONDS: Joi.number().min(1).default(60),
+  CACHE_MAX_ITEMS: Joi.number().min(1).default(1000),
+
+  RESEND_API_KEY: Joi.string().trim().allow('').optional(),
+  RESEND_FROM_EMAIL: Joi.string().trim().allow('').optional(),
+});

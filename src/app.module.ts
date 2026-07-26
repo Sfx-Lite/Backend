@@ -9,29 +9,38 @@ import { env } from './config/env';
 import configuration from './config/configuration';
 import { envValidationSchema } from './config/env.validation';
 import { DatabaseModule } from './database/database.module';
+import { CacheModule } from './common/cache/cache.module';
 
+// Feature modules
 import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { KycModule } from './modules/kyc/kyc.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { LedgerModule } from './modules/ledger/ledger.module';
 import { WalletsModule } from './modules/wallets/wallets.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
-import { AdminModule } from './modules/admin/admin.module';
+import { FxModule } from './modules/fx/fx.module';
+import { FeesModule } from './modules/fees/fees.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 
+// Cross-cutting middleware, guards, filters and interceptors
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { HttpLoggerMiddleware } from './common/middleware/http-logger.middleware';
-import { AppThrottlerGuard } from './common/guards/app-throttler.guard';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { AppThrottlerGuard } from './common/guards/app-throttler.guard';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformResponseInterceptor } from './common/interceptors/transform-response.interceptor';
 import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor';
-import { CacheModule } from './common/cache/cache.module';
 import { ResponseCacheInterceptor } from './common/cache/response-cache.interceptor';
 import { THROTTLER_IP, THROTTLER_USER } from './common/constants';
 import { RagModule } from './modules/rag/rag.module';
 
 @Module({
   imports: [
+    // ── Platform ──────────────────────────────────────────────
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
@@ -41,7 +50,6 @@ import { RagModule } from './modules/rag/rag.module';
         allowUnknown: true,
       },
     }),
-
     ThrottlerModule.forRoot({
       throttlers: [
         {
@@ -56,56 +64,38 @@ import { RagModule } from './modules/rag/rag.module';
         },
       ],
     }),
-
-    JwtModule.register({
-      secret: env.jwt.accessSecret,
-    }),
-
+    JwtModule.register({ secret: env.jwt.accessSecret }),
     ScheduleModule.forRoot(),
     CacheModule,
     DatabaseModule,
-    HealthModule,
 
+    // ── Features ──────────────────────────────────────────────
+    HealthModule,
     AuthModule,
     UsersModule,
+    AdminModule,
+    KycModule,
+    NotificationsModule,
+    LedgerModule,
     WalletsModule,
     AnalyticsModule,
+    FxModule,
+    FeesModule,
+    UploadsModule,
     AdminModule,
     RagModule,
   ],
-
   providers: [
-    // Authentication must run before role authorization.
-    {
-      provide: APP_GUARD,
-      useClass: JwtAuthGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: RolesGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: AppThrottlerGuard,
-    },
+    // Authentication runs before role authorization, which runs before rate limiting.
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: AppThrottlerGuard },
 
-    {
-      provide: APP_FILTER,
-      useClass: AllExceptionsFilter,
-    },
+    { provide: APP_FILTER, useClass: AllExceptionsFilter },
 
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: TransformResponseInterceptor,
-    },
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: TimeoutInterceptor,
-    },
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: ResponseCacheInterceptor,
-    },
+    { provide: APP_INTERCEPTOR, useClass: TransformResponseInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: TimeoutInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: ResponseCacheInterceptor },
   ],
 })
 export class AppModule implements NestModule {

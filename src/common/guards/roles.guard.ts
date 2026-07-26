@@ -11,6 +11,17 @@ import { UserRole } from '../../modules/users/enums/user-role.enum';
 import { AccessTokenPayload } from './jwt-auth.guard';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
+/**
+ * Role hierarchy — a role implicitly satisfies every role beneath it, so a
+ * super_admin passes any @Roles('admin') check without every route having to
+ * list both. Keep this exhaustive over UserRole.
+ */
+const EFFECTIVE_ROLES: Record<UserRole, readonly UserRole[]> = {
+  [UserRole.USER]: [UserRole.USER],
+  [UserRole.ADMIN]: [UserRole.ADMIN, UserRole.USER],
+  [UserRole.SUPER_ADMIN]: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.USER],
+};
+
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
@@ -31,8 +42,13 @@ export class RolesGuard implements CanActivate {
       .getRequest<Request & { user?: AccessTokenPayload }>();
 
     const user = request.user;
+    const effectiveRoles = user ? EFFECTIVE_ROLES[user.role] : undefined;
 
-    if (!user || !requiredRoles.includes(user.role)) {
+    const isAllowed = effectiveRoles?.some((role) =>
+      requiredRoles.includes(role),
+    );
+
+    if (!isAllowed) {
       throw new ForbiddenException(
         'You do not have permission to access this resource',
       );

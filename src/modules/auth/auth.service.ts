@@ -9,18 +9,22 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { type StringValue } from 'ms';
 
 import { env } from '../../config/env';
 import { CacheService } from '../../common/cache/cache.service';
 import { sendResponse } from '../../common/utils/response.util';
+import { EmailService } from '../email/email.service';
+import { buildPasswordResetEmail } from '../email/templates/password-reset-email.template';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
 import { WalletsService } from '../wallets/wallets.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { GoogleProfile } from './interfaces/google-profile.interface';
 
 interface JwtPayload {
@@ -37,13 +41,21 @@ export class AuthService {
 
   private static readonly GOOGLE_NONCE_TTL_SECONDS = 10 * 60;
 
+  private static readonly PASSWORD_RESET_TTL_MINUTES = 60;
+
   constructor(
     @InjectRepository(User)
     private readonly users: Repository<User>,
     private readonly jwt: JwtService,
     private readonly wallets: WalletsService,
     private readonly cache: CacheService,
+    private readonly email: EmailService,
   ) {}
+
+  /** Hash a reset token so only its digest is ever stored in the database. */
+  private static hashResetToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
 
   private static googleNonceKey(nonce: string): string {
     return `google:nonce:${nonce}`;
@@ -105,6 +117,7 @@ export class AuthService {
       firstName: user.firstName,
       lastName: user.lastName,
       country: user.country,
+      tier: user.tier,
       role: user.role,
     };
   }
@@ -159,13 +172,62 @@ export class AuthService {
     );
   }
 
-  async login(dto: LoginDto) {
-    const user = await this.users.findOne({
+  /**
+   * Authenticate a login request and return the User, or throw. Shared by
+   * login() and adminLogin().
+   *
+   * The root-admin bootstrap is confined to the admin login path
+   * (`allowRootProvision`): logging in with ROOT_ADMIN_EMAIL creates the account
+   * as a super_admin on first use (only if the submitted password matches
+   * ROOT_ADMIN_PASSWORD, so only the env-secret holder can provision it), and
+   * thereafter ensures that account keeps the super_admin role. The public user
+   * login never provisions or elevates — it authenticates against stored
+   * credentials only.
+   */
+  private async authenticate(
+    dto: LoginDto,
+    options: { allowRootProvision?: boolean } = {},
+  ): Promise<User> {
+    const allowRootProvision = options.allowRootProvision ?? false;
+    const rootEmail = env.admin.rootEmail?.trim().toLowerCase();
+    const isRootLogin =
+      !!rootEmail && dto.emailOrUsername.trim().toLowerCase() === rootEmail;
+
+    let user = await this.users.findOne({
       where: [
         { email: dto.emailOrUsername },
         { username: dto.emailOrUsername },
       ],
     });
+
+    // First-ever root login: provision the super_admin. The password is
+    // verified here against the env secret, never revealing the root email.
+    // Only the admin login endpoint may trigger this bootstrap.
+    if (allowRootProvision && isRootLogin && !user) {
+      if (!env.admin.rootPassword || dto.password !== env.admin.rootPassword) {
+        throw new UnauthorizedException('Invalid email or password');
+      }
+
+      const passwordHash = await bcrypt.hash(dto.password, 12);
+
+      user = await this.users.save(
+        this.users.create({
+          email: rootEmail,
+          username: env.admin.rootUsername?.trim() || 'root_admin',
+          passwordHash,
+          role: UserRole.SUPER_ADMIN,
+        }),
+      );
+
+      await this.provisionDepositAddress(user.id);
+      this.logger.log(`Root admin provisioned on first login: ${rootEmail}`);
+
+      if (user.suspendedAt) {
+        throw new ForbiddenException('Account suspended');
+      }
+
+      return user;
+    }
 
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Invalid email or password');
@@ -180,10 +242,21 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    // Keep the root account elevated even if it predates this rule — but only
+    // when it re-authenticates through the admin login path.
+    if (allowRootProvision && isRootLogin && user.role !== UserRole.SUPER_ADMIN) {
+      user.role = UserRole.SUPER_ADMIN;
+      user = await this.users.save(user);
+    }
+
     if (user.suspendedAt) {
       throw new ForbiddenException('Account suspended');
     }
 
+    return user;
+  }
+
+  private async buildLoginResponse(user: User) {
     const tokens = await this.issueTokens(user);
 
     return sendResponse(
@@ -194,6 +267,42 @@ export class AuthService {
       },
       'Login successful',
     );
+  }
+
+  /**
+   * Public user login. Authenticates a regular user against stored credentials
+   * and refuses admin/super_admin accounts — admins must use the dedicated
+   * admin endpoint, so an elevated session can never be minted from the public
+   * login surface. This endpoint also never provisions the root admin.
+   */
+  async login(dto: LoginDto) {
+    const user = await this.authenticate(dto);
+
+    if (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException(
+        'Not allowed',
+      );
+    }
+
+    return this.buildLoginResponse(user);
+  }
+
+  /**
+   * Admin dashboard login — the ONLY endpoint that authenticates admins. Same
+   * credential flow as login(), but rejects any account that is not an admin or
+   * super_admin, and is the sole path that bootstraps the root admin on first
+   * use. Keeps the admin surface fully separate from the public user login.
+   */
+  async adminLogin(dto: LoginDto) {
+    const user = await this.authenticate(dto, { allowRootProvision: true });
+
+    if (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException(
+        'This account is not authorized for admin access',
+      );
+    }
+
+    return this.buildLoginResponse(user);
   }
 
   async refresh(refreshToken: string) {
@@ -498,6 +607,109 @@ export class AuthService {
         verified: true,
       },
       'Transaction PIN verified successfully',
+    );
+  }
+
+  /**
+   * Start the forgot-password flow: if an account with this email exists and
+   * has a password, generate a single-use token, store only its hash + an
+   * expiry on the user row, and email the reset link.
+   *
+   * The response is intentionally the same whether or not the email exists, so
+   * this endpoint cannot be used to enumerate registered accounts.
+   */
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const neutralMessage =
+      'If an account exists for that email, a password reset link has been sent.';
+
+    const normalizedEmail = dto.email.trim().toLowerCase();
+
+    const user = await this.users.findOne({
+      where: { email: normalizedEmail },
+    });
+
+    // Only email accounts that can actually have a password reset. Google-only
+    // accounts (no passwordHash) are skipped, but the response is unchanged.
+    if (!user || !user.passwordHash || user.suspendedAt) {
+      return sendResponse(null, neutralMessage);
+    }
+
+    const rawToken = randomBytes(32).toString('hex');
+
+    user.passwordResetToken = AuthService.hashResetToken(rawToken);
+    user.passwordResetExpiresAt = new Date(
+      Date.now() + AuthService.PASSWORD_RESET_TTL_MINUTES * 60 * 1000,
+    );
+
+    await this.users.save(user);
+
+    const resetUrl = `${env.frontendUrl.replace(/\/$/, '')}/reset_password/${rawToken}`;
+
+    const recipientName = [user.firstName, user.lastName]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    const template = buildPasswordResetEmail({
+      recipientName,
+      resetUrl,
+      expiresInText: `${AuthService.PASSWORD_RESET_TTL_MINUTES} minutes`,
+    });
+
+    try {
+      await this.email.send({
+        to: user.email,
+        subject: template.subject,
+        text: template.text,
+        html: template.html,
+      });
+    } catch (err) {
+      // Don't leak delivery state to the caller, but surface it in logs.
+      this.logger.error(
+        `Password reset email failed for user ${user.id}: ${
+          (err as Error).message
+        }`,
+      );
+    }
+
+    return sendResponse(null, neutralMessage);
+  }
+
+  /**
+   * Complete the flow: validate the token from the emailed link against the
+   * stored hash and expiry, set the new password, and clear the reset token so
+   * it cannot be reused. The user can then log in with the new password.
+   */
+  async resetPassword(token: string, dto: ResetPasswordDto) {
+    const tokenHash = AuthService.hashResetToken(token);
+
+    const user = await this.users.findOne({
+      where: { passwordResetToken: tokenHash },
+    });
+
+    if (
+      !user ||
+      !user.passwordResetExpiresAt ||
+      user.passwordResetExpiresAt.getTime() < Date.now()
+    ) {
+      throw new UnauthorizedException(
+        'This password reset link is invalid or has expired',
+      );
+    }
+
+    if (user.suspendedAt) {
+      throw new ForbiddenException('Account suspended');
+    }
+
+    user.passwordHash = await bcrypt.hash(dto.newPassword, 12);
+    user.passwordResetToken = null;
+    user.passwordResetExpiresAt = null;
+
+    await this.users.save(user);
+
+    return sendResponse(
+      null,
+      'Password has been reset successfully. You can now log in with your new password.',
     );
   }
 }

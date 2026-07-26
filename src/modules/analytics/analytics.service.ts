@@ -13,17 +13,22 @@ export class AnalyticsService {
     private readonly eventsRepo: Repository<AnalyticsEvent>,
   ) {}
 
-async logEvent(dto: CreateEventDto, userId: string, actorType: UserRole) {
-  const event = this.eventsRepo.create({
-    eventName: dto.eventName,
-    sessionId: dto.sessionId,
-    properties: dto.properties ?? {},
-    userId,
-    actorType,
-  });
+  async logEvent(dto: CreateEventDto, userId: string, actorType: UserRole) {
+    // analytics tracks two actor surfaces (user vs admin); a super_admin
+    // operates the admin surface, so any non-user role maps to 'admin'.
+    const actorSurface: 'user' | 'admin' =
+      actorType === UserRole.USER ? 'user' : 'admin';
 
-  const saved = await this.eventsRepo.save(event);
+    const event = this.eventsRepo.create({
+      eventName: dto.eventName,
+      sessionId: dto.sessionId,
+      properties: dto.properties ?? {},
+      userId,
+      actorType: actorSurface,
+    });
 
-  return sendResponse(saved, 'Event logged successfully');
-}
+    const saved = await this.eventsRepo.save(event);
+
+    return sendResponse(saved, 'Event logged successfully');
+  }
 }

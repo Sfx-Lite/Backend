@@ -8,7 +8,16 @@ import { DataSource, EntityManager, Repository } from 'typeorm';
 import { HDNodeWallet, Mnemonic, getAddress } from 'ethers';
 
 import { env } from '../../config/env';
+import { LedgerService } from '../ledger/ledger.service';
 import { Wallet } from './entities/wallet.entity';
+
+/** The user's spendable in-app balance for one asset, for the Home dashboard. */
+export interface WalletBalance {
+  asset: string;
+  network: string;
+  /** Decimal string at the asset's scale, e.g. "20.5". Zero if never credited. */
+  balance: string;
+}
 
 /**
  * WalletsService — Squad B (Wallet & Escrow)
@@ -42,6 +51,7 @@ export class WalletsService {
     @InjectRepository(Wallet)
     private readonly wallets: Repository<Wallet>,
     private readonly dataSource: DataSource,
+    private readonly ledger: LedgerService,
   ) {}
 
   private static derivationPath(index: number): string {
@@ -133,5 +143,17 @@ export class WalletsService {
   /** Read the user's assigned deposit wallet, or null if none yet. */
   findForUser(userId: string): Promise<Wallet | null> {
     return this.wallets.findOne({ where: { userId } });
+  }
+
+  /**
+   * The user's current spendable in-app balance, read from the append-only
+   * ledger (the `balance_after` of their latest entry, or zero if never
+   * credited). This is the number the Home dashboard shows — it reflects
+   * confirmed deposits, transfers and withdrawals, NOT the raw on-chain balance
+   * of the deposit address (funds there are swept into the master wallet).
+   */
+  async balanceForUser(userId: string, asset = 'USDC'): Promise<WalletBalance> {
+    const balance = await this.ledger.getBalance(userId, asset);
+    return { asset, network: 'polygon-amoy', balance };
   }
 }

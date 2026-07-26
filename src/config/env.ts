@@ -24,6 +24,10 @@ export const env = {
   apiPrefix: process.env.API_PREFIX ?? 'api',
   apiVersion: process.env.API_VERSION ?? '1',
 
+  // Base URL of the web client — used to build user-facing links such as the
+  // password-reset link emailed to users. Set FRONTEND_URL in production.
+  frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
+
   cors: {
     // "a,b,c" -> ['a','b','c'] — trimmed, empties removed
     origins: (process.env.CORS_ORIGINS ?? '')
@@ -64,11 +68,54 @@ export const env = {
     callbackUrl: process.env.GOOGLE_CALLBACK_URL,
   },
 
+  // Root admin (RBAC). The only self-provisioning admin: on first login with
+  // this email — password matching rootPassword — a super_admin account is
+  // created. Thereafter it logs in like any account against its stored hash.
+  admin: {
+    rootEmail: process.env.ROOT_ADMIN_EMAIL,
+    rootPassword: process.env.ROOT_ADMIN_PASSWORD,
+    rootUsername: process.env.ROOT_ADMIN_USERNAME,
+  },
+
+  email: {
+    resendApiKey: process.env.RESEND_API_KEY,
+    fromEmail: process.env.RESEND_FROM_EMAIL,
+  },
+
+  cloudinary: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    apiSecret: process.env.CLOUDINARY_API_SECRET,
+  },
+
   chain: {
     rpcUrl: process.env.ALCHEMY_AMOY_RPC_URL,
     masterMnemonic: process.env.MASTER_WALLET_MNEMONIC,
     usdcAddress: process.env.USDC_TOKEN_ADDRESS,
     depositConfirmations: int(process.env.DEPOSIT_CONFIRMATIONS, 3),
+    // Max block span per eth_getLogs call. Hosted RPC free tiers cap this
+    // (Alchemy Amoy free tier = 10). The watcher pages the scan window into
+    // chunks this size, so raise it only on a paid/self-hosted node.
+    getLogsMaxRange: int(process.env.GETLOGS_MAX_RANGE, 10),
+    // Per-request RPC timeout (ms). A slow/hung call aborts and the watcher
+    // simply retries on the next poll instead of blocking for minutes.
+    requestTimeoutMs: int(process.env.RPC_REQUEST_TIMEOUT_MS, 20_000),
+    // Blocks to re-scan on a cold start (no in-memory checkpoint). Kept small so
+    // the first poll isn't a big getLogs burst on a free RPC; overlap is safe
+    // because crediting is idempotent.
+    coldStartLookback: int(process.env.COLD_START_LOOKBACK, 120),
+  },
+
+  fees: {
+    localPercentage: Number(process.env.LOCAL_TRANSFER_FEE_PERCENTAGE ?? 0.01),
+
+    internationalPercentage: Number(
+      process.env.INTERNATIONAL_TRANSFER_FEE_PERCENTAGE ?? 0.02,
+    ),
+
+    minimumFee: Number(process.env.MINIMUM_TRANSFER_FEE ?? 0.5),
+
+    maximumFee: Number(process.env.MAXIMUM_TRANSFER_FEE ?? 25),
   },
 } as const;
 
