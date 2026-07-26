@@ -211,4 +211,16 @@ export class TransactionsService {
   ): Promise<void> {
     await this.repo(manager).update({ id: transactionId }, { status });
   }
+
+  async getVolumeSince(from: Date): Promise<number> {
+    const result = await this.transactions
+      .createQueryBuilder('t')
+      .select('COALESCE(SUM(t.amount), 0)', 'total')
+      .where('t.status = :status', { status: TransactionStatus.SUCCESSFUL })
+      .andWhere('t.type != :sweepType', { sweepType: TransactionType.SWEEP })
+      .andWhere('t.created_at >= :from', { from })
+      .getRawOne<{ total: string }>();
+
+    return Number(result?.total ?? 0);
+  }
 }

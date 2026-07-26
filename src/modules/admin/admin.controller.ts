@@ -8,35 +8,26 @@ import {
 
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
-import { AdminStatsService } from './admin-stats.service';
-import { AdminStatsResponseDto } from './dto/admin-stats-response.dto';
+import { AdminService } from './admin.service';
+import { StatsOverviewResponseDto } from './dto/stats-overview-response.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminStatsService: AdminStatsService) {}
+  constructor(private readonly adminService: AdminService) {}
 
   @Get('test')
   @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Smoke-test admin role gating (admin only)' })
-  @ApiOkResponse({ description: 'Admin access granted.' })
   testAdminAccess() {
-    return {
-      message: 'Admin access granted',
-    };
+    return { message: 'Admin access granted' };
   }
 
-  @Get('stats')
+  @Get('stats-overview')
   @Roles(UserRole.ADMIN)
-  @ApiOperation({
-    summary: 'Get admin dashboard stats',
-    description:
-      'Returns user counts plus pendingKyc/volume/masterWallet, which are currently null pending those services being built.',
-  })
-  @ApiResponse({ status: 200, type: AdminStatsResponseDto })
-  async getStats(): Promise<AdminStatsResponseDto> {
-    return this.adminStatsService.getStats();
+  @ApiOperation({ summary: 'Get admin dashboard overview stats' })
+  @ApiResponse({ status: 200, type: StatsOverviewResponseDto })
+  async getStatsOverview(): Promise<StatsOverviewResponseDto> {
+    return this.adminService.getStatsOverview();
   }
 }
