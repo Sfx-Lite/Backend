@@ -18,13 +18,13 @@ describe('TransactionsService', () => {
     repo = {
       findOne: jest.fn(),
       create: jest.fn((v: Partial<Transaction>) => ({ ...v }) as Transaction),
-      save: jest.fn((v: Transaction) =>
-        Promise.resolve({ ...v, id: 'tx-1' } as Transaction),
-      ),
+      save: jest.fn((v: Transaction) => Promise.resolve({ ...v, id: 'tx-1' })),
       update: jest.fn(() => Promise.resolve({ affected: 1 })),
     };
 
-    service = new TransactionsService(repo as unknown as Repository<Transaction>);
+    service = new TransactionsService(
+      repo as unknown as Repository<Transaction>,
+    );
   });
 
   it('records a confirmed deposit as a SUCCESSFUL deposit transaction', async () => {
@@ -49,7 +49,7 @@ describe('TransactionsService', () => {
   });
 
   it('looks up an existing deposit by (txHash, user) for idempotency', async () => {
-    repo.findOne.mockResolvedValue({ id: 'tx-1' } as Transaction);
+    repo.findOne.mockResolvedValue({ id: 'tx-1' });
 
     const found = await service.findDepositByHashForUser('0xabc', 'user-1');
 

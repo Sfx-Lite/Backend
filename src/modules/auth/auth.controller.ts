@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
+  ApiForbiddenResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -145,10 +146,49 @@ export class AuthController {
   @Public()
   @ApiOperation({
     summary:
-      'Log in with email OR username + password, and issue an access + refresh token pair',
+      'User login with email OR username + password — issues an access + refresh token pair',
+    description:
+      'The login for regular users only. Admin and super_admin accounts are ' +
+      'rejected with 403 and must use POST /auth/admin/login — the public login ' +
+      'surface can never mint an admin session, nor does it provision the root ' +
+      'admin. The issued token carries the role for client-side routing.',
+  })
+  @ApiBody({ type: LoginDto })
+  @ApiOkResponse({
+    description:
+      'Login successful — returns { data: { accessToken, refreshToken, user } }.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Invalid credentials.' })
+  @ApiForbiddenResponse({
+    description:
+      'The credentials belong to an admin account — sign in via POST /auth/admin/login instead.',
   })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Post('admin/login')
+  @Public()
+  @ApiOperation({
+    summary: 'Admin dashboard login (admin / super_admin only)',
+    description:
+      'The dedicated, separate sign-in for the admin dashboard and the ONLY ' +
+      'endpoint that authenticates admins. Same credential format as ' +
+      '/auth/login, but rejects any account that is not an admin or super_admin ' +
+      'with 403. The root admin (ROOT_ADMIN_EMAIL) is provisioned exclusively ' +
+      'here on first use (password must match ROOT_ADMIN_PASSWORD).',
+  })
+  @ApiBody({ type: LoginDto })
+  @ApiOkResponse({
+    description:
+      'Admin login successful — returns { data: { accessToken, refreshToken, user } }.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Invalid credentials.' })
+  @ApiForbiddenResponse({
+    description: 'The account is valid but not authorized for admin access.',
+  })
+  adminLogin(@Body() dto: LoginDto) {
+    return this.authService.adminLogin(dto);
   }
 
   @Post('refresh')
@@ -194,10 +234,7 @@ export class AuthController {
   @ApiUnauthorizedResponse({
     description: 'The reset token is invalid or has expired.',
   })
-  resetPassword(
-    @Param('token') token: string,
-    @Body() dto: ResetPasswordDto,
-  ) {
+  resetPassword(@Param('token') token: string, @Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(token, dto);
   }
 }

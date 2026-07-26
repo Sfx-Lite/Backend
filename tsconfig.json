@@ -23,7 +23,9 @@
     "noFallthroughCasesInSwitch": true,
     "types": [
       "node",
-      "jest"
+      "jest",
+       "multer"
     ]
   }
 }
+

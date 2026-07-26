@@ -19,6 +19,9 @@ export class AdminController {
 
   @Get('test')
   @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Smoke-test admin role gating (admin only)' })
+  @ApiOkResponse({ description: 'Admin access granted.' })
   testAdminAccess() {
     return {
       message: 'Admin access granted',

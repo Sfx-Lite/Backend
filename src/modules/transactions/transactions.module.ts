@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { KycVerifiedGuard } from '../../common/guards/kyc-verified.guard';
 import { LedgerModule } from '../ledger/ledger.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { UsersModule } from '../users/users.module';
@@ -26,7 +27,7 @@ import { TransfersService } from './transfers.service';
     UsersModule,
   ],
   controllers: [TransactionsController],
-  providers: [TransactionsService, TransfersService],
+  providers: [TransactionsService, TransfersService, KycVerifiedGuard],
   exports: [TransactionsService],
 })
 export class TransactionsModule {}

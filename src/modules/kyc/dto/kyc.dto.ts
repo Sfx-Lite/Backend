@@ -3,12 +3,29 @@ import {
   IsEnum,
   IsIn,
   IsNotEmpty,
+  IsOptional,
   IsString,
   MaxLength,
   ValidateIf,
 } from 'class-validator';
 
+import { KycDocType } from '../enums/kyc-doc-type.enum';
 import { KycSubmissionStatus } from '../enums/kyc-submission-status.enum';
+
+export class CreateKycSubmissionDto {
+  @IsEnum(KycDocType, {
+    message: 'docType must be either passport or national_id',
+  })
+  docType!: KycDocType;
+}
+
+export class ListKycSubmissionsQueryDto {
+  @IsOptional()
+  @IsEnum(KycSubmissionStatus, {
+    message: 'status must be one of: pending, under_review, approved, rejected',
+  })
+  status?: KycSubmissionStatus;
+}
 
 const REVIEW_OUTCOMES = [
   KycSubmissionStatus.APPROVED,

@@ -79,7 +79,7 @@ describe('toTransactionView', () => {
 });
 
 describe('counterpartyIdOf', () => {
-  it('returns the other party from the viewer\'s side', () => {
+  it("returns the other party from the viewer's side", () => {
     const transfer = tx({ fromUserId: ALICE, toUserId: BOB });
     expect(counterpartyIdOf(transfer, ALICE)).toBe(BOB);
     expect(counterpartyIdOf(transfer, BOB)).toBe(ALICE);

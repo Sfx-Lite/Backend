@@ -26,12 +26,16 @@ function makeStore() {
         const matches = rows.filter(
           (r) => r.userId === where.userId && r.asset === where.asset,
         );
-        return Promise.resolve(matches.length ? matches[matches.length - 1] : null);
+        return Promise.resolve(
+          matches.length ? matches[matches.length - 1] : null,
+        );
       },
     ),
-    create: jest.fn((value: Partial<LedgerEntry>) => ({ ...value }) as LedgerEntry),
+    create: jest.fn(
+      (value: Partial<LedgerEntry>) => ({ ...value }) as LedgerEntry,
+    ),
     save: jest.fn((value: LedgerEntry) => {
-      const persisted = { ...value, id: `entry-${(seq += 1)}` } as LedgerEntry;
+      const persisted = { ...value, id: `entry-${(seq += 1)}` };
       rows.push(persisted);
       return Promise.resolve(persisted);
     }),

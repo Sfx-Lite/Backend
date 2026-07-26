@@ -39,8 +39,8 @@ export function toTransactionView(
 ): TransactionView {
   const isIncoming = tx.toUserId === viewerId;
   const counterpartyUserId = isIncoming
-    ? tx.fromUserId ?? null
-    : tx.toUserId ?? null;
+    ? (tx.fromUserId ?? null)
+    : (tx.toUserId ?? null);
 
   return {
     id: tx.id,
@@ -53,7 +53,7 @@ export function toTransactionView(
     note: tx.note ?? null,
     counterpartyUserId,
     counterpartyUsername: counterpartyUserId
-      ? usernameById.get(counterpartyUserId) ?? null
+      ? (usernameById.get(counterpartyUserId) ?? null)
       : null,
     externalAddress: tx.externalAddress ?? null,
     txHash: tx.txHash ?? null,

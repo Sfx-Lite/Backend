@@ -172,13 +172,62 @@ export class AuthService {
     );
   }
 
-  async login(dto: LoginDto) {
-    const user = await this.users.findOne({
+  /**
+   * Authenticate a login request and return the User, or throw. Shared by
+   * login() and adminLogin().
+   *
+   * The root-admin bootstrap is confined to the admin login path
+   * (`allowRootProvision`): logging in with ROOT_ADMIN_EMAIL creates the account
+   * as a super_admin on first use (only if the submitted password matches
+   * ROOT_ADMIN_PASSWORD, so only the env-secret holder can provision it), and
+   * thereafter ensures that account keeps the super_admin role. The public user
+   * login never provisions or elevates — it authenticates against stored
+   * credentials only.
+   */
+  private async authenticate(
+    dto: LoginDto,
+    options: { allowRootProvision?: boolean } = {},
+  ): Promise<User> {
+    const allowRootProvision = options.allowRootProvision ?? false;
+    const rootEmail = env.admin.rootEmail?.trim().toLowerCase();
+    const isRootLogin =
+      !!rootEmail && dto.emailOrUsername.trim().toLowerCase() === rootEmail;
+
+    let user = await this.users.findOne({
       where: [
         { email: dto.emailOrUsername },
         { username: dto.emailOrUsername },
       ],
     });
+
+    // First-ever root login: provision the super_admin. The password is
+    // verified here against the env secret, never revealing the root email.
+    // Only the admin login endpoint may trigger this bootstrap.
+    if (allowRootProvision && isRootLogin && !user) {
+      if (!env.admin.rootPassword || dto.password !== env.admin.rootPassword) {
+        throw new UnauthorizedException('Invalid email or password');
+      }
+
+      const passwordHash = await bcrypt.hash(dto.password, 12);
+
+      user = await this.users.save(
+        this.users.create({
+          email: rootEmail,
+          username: env.admin.rootUsername?.trim() || 'root_admin',
+          passwordHash,
+          role: UserRole.SUPER_ADMIN,
+        }),
+      );
+
+      await this.provisionDepositAddress(user.id);
+      this.logger.log(`Root admin provisioned on first login: ${rootEmail}`);
+
+      if (user.suspendedAt) {
+        throw new ForbiddenException('Account suspended');
+      }
+
+      return user;
+    }
 
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Invalid email or password');
@@ -193,10 +242,21 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    // Keep the root account elevated even if it predates this rule — but only
+    // when it re-authenticates through the admin login path.
+    if (allowRootProvision && isRootLogin && user.role !== UserRole.SUPER_ADMIN) {
+      user.role = UserRole.SUPER_ADMIN;
+      user = await this.users.save(user);
+    }
+
     if (user.suspendedAt) {
       throw new ForbiddenException('Account suspended');
     }
 
+    return user;
+  }
+
+  private async buildLoginResponse(user: User) {
     const tokens = await this.issueTokens(user);
 
     return sendResponse(
@@ -207,6 +267,42 @@ export class AuthService {
       },
       'Login successful',
     );
+  }
+
+  /**
+   * Public user login. Authenticates a regular user against stored credentials
+   * and refuses admin/super_admin accounts — admins must use the dedicated
+   * admin endpoint, so an elevated session can never be minted from the public
+   * login surface. This endpoint also never provisions the root admin.
+   */
+  async login(dto: LoginDto) {
+    const user = await this.authenticate(dto);
+
+    if (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException(
+        'Not allowed',
+      );
+    }
+
+    return this.buildLoginResponse(user);
+  }
+
+  /**
+   * Admin dashboard login — the ONLY endpoint that authenticates admins. Same
+   * credential flow as login(), but rejects any account that is not an admin or
+   * super_admin, and is the sole path that bootstraps the root admin on first
+   * use. Keeps the admin surface fully separate from the public user login.
+   */
+  async adminLogin(dto: LoginDto) {
+    const user = await this.authenticate(dto, { allowRootProvision: true });
+
+    if (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException(
+        'This account is not authorized for admin access',
+      );
+    }
+
+    return this.buildLoginResponse(user);
   }
 
   async refresh(refreshToken: string) {

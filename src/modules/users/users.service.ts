@@ -1,17 +1,20 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, IsNull, Not } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
 import { sendResponse } from '../../common/utils/response.util';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { User } from './entities/user.entity';
+import { KycStatus } from './enums/kyc-status.enum';
 
 @Injectable()
 export class UsersService {
@@ -54,9 +57,9 @@ export class UsersService {
   }
 
   /**
-   * PATCH /users/profile — update the editable profile fields only. username,
-   * email and mobileNumber are not part of UpdateProfileDto and cannot be
-   * changed here.
+   * PATCH /users/profile — update the editable profile fields only. username
+   * and email are not part of UpdateProfileDto and cannot be changed here.
+   * mobileNumber is editable but must stay unique across users.
    */
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     const user = await this.users.findOne({ where: { id: userId } });
@@ -87,6 +90,23 @@ export class UsersService {
     }
 
     Object.assign(user, updates);
+
+    // mobileNumber is editable but unique — reject a number already held by a
+    // different account before persisting.
+    if (dto.mobileNumber !== undefined) {
+      const mobileNumber = dto.mobileNumber.trim();
+
+      const clash = await this.users.findOne({
+        where: { mobileNumber, id: Not(userId) },
+        select: { id: true },
+      });
+
+      if (clash) {
+        throw new ConflictException('Mobile number already exists');
+      }
+
+      user.mobileNumber = mobileNumber;
+    }
 
     const saved = await this.users.save(user);
 
@@ -163,6 +183,19 @@ export class UsersService {
       where: { id },
       select: { id: true, username: true },
     });
+  }
+
+  /**
+   * KYC status for a single user, or null if the user does not exist. Used by
+   * KycVerifiedGuard to gate identity-restricted actions (send, withdraw).
+   */
+  async getKycStatus(id: string): Promise<KycStatus | null> {
+    const user = await this.users.findOne({
+      where: { id },
+      select: { id: true, kycStatus: true },
+    });
+
+    return user?.kycStatus ?? null;
   }
 
   /**
