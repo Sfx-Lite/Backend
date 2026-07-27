@@ -23,6 +23,8 @@ interface ValidatedEnvironment {
   REDIS_URL?: string;
   CACHE_TTL_SECONDS: number;
   CACHE_MAX_ITEMS: number;
+  RESEND_API_KEY: string;
+  RESEND_FROM_EMAIL: string;
   VOYAGE_API_URL: string;
   VOYAGE_API_KEY: string;
 }
@@ -62,6 +64,9 @@ export const envValidationSchema: Joi.ObjectSchema<ValidatedEnvironment> =
     CACHE_TTL_SECONDS: Joi.number().min(1).default(60),
     CACHE_MAX_ITEMS: Joi.number().min(1).default(1000),
 
+    RESEND_API_KEY: Joi.string().trim().allow('').optional(),
+    RESEND_FROM_EMAIL: Joi.string().trim().allow('').optional(),
+
     VOYAGE_API_URL: Joi.string().uri(),
     VOYAGE_API_KEY: Joi.string().min(1),
   });
@@ -76,11 +81,3 @@ if (validationResult.error) {
 }
 
 export const validatedEnv = validationResult.value;
-  // Cache is optional — omit REDIS_URL to run on the in-memory fallback.
-  REDIS_URL: Joi.string().uri().allow('').optional(),
-  CACHE_TTL_SECONDS: Joi.number().min(1).default(60),
-  CACHE_MAX_ITEMS: Joi.number().min(1).default(1000),
-
-  RESEND_API_KEY: Joi.string().trim().allow('').optional(),
-  RESEND_FROM_EMAIL: Joi.string().trim().allow('').optional(),
-});

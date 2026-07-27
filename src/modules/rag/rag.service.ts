@@ -139,10 +139,10 @@ export class RagService {
 
     const rows: { content: string; source: string | null; distance: number }[] =
       await this.docChunkRepo.query(
-        `SELECT content, source, embedding <=> $1 AS distance
-         FROM doc_chunks
-         ORDER BY embedding <=> $1
-         LIMIT $2`,
+        `SELECT content, source, embedding <=> $1::vector AS distance
+       FROM doc_chunks
+       ORDER BY embedding <=> $1::vector
+       LIMIT $2`,
         [vectorLiteral, topK],
       );
 
