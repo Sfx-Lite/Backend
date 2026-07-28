@@ -23,7 +23,7 @@ export class AdminController {
     return { message: 'Admin access granted' };
   }
 
-  @Get('stats-overview')
+  @Get('metrics/dashboard')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Get admin dashboard overview stats' })
   @ApiResponse({ status: 200, type: StatsOverviewResponseDto })
