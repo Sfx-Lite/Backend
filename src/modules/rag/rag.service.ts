@@ -104,35 +104,51 @@ export class RagService {
     source: string,
   ): Promise<{ inserted: number; skipped: number }> {
     const chunks = this.chunkText(content);
-    let inserted = 0;
-    let skipped = 0;
-
     const embeddings = await this.embedTexts(chunks, 'document');
 
-    for (let i = 0; i < chunks.length; i++) {
-      const contentHash = this.hashContent(chunks[i]);
+    const contentHashes = chunks.map((chunk) => this.hashContent(chunk));
 
-      const existing = await this.docChunkRepo.findOne({
-        where: { contentHash, source },
-      });
-      if (existing) {
-        skipped++;
-        continue;
-      }
-
-      const vectorLiteral = this.toVectorLiteral(embeddings[i]);
-
+    const existingRows: { content_hash: string }[] =
       await this.docChunkRepo.query(
-        `INSERT INTO doc_chunks (source, content, embedding, content_hash)
-   VALUES ($1, $2, $3, $4)`,
-        [source, chunks[i], vectorLiteral, contentHash],
+        `SELECT content_hash FROM doc_chunks WHERE source = $1 AND content_hash = ANY($2)`,
+        [source, contentHashes],
       );
-      inserted++;
+    const existingHashes = new Set(existingRows.map((row) => row.content_hash));
+
+    const toInsert = chunks
+      .map((chunkText, i) => ({
+        content: chunkText,
+        embedding: this.toVectorLiteral(embeddings[i]),
+        contentHash: contentHashes[i],
+      }))
+      .filter((chunk) => !existingHashes.has(chunk.contentHash));
+
+    if (toInsert.length === 0) {
+      return { inserted: 0, skipped: chunks.length };
     }
 
-    return { inserted, skipped };
-  }
+    const valuesClauses: string[] = [];
+    const params: unknown[] = [];
 
+    toInsert.forEach((chunk, i) => {
+      const offset = i * 4;
+      valuesClauses.push(
+        `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4})`,
+      );
+      params.push(source, chunk.content, chunk.embedding, chunk.contentHash);
+    });
+
+    await this.docChunkRepo.query(
+      `INSERT INTO doc_chunks (source, content, embedding, content_hash)
+     VALUES ${valuesClauses.join(', ')}`,
+      params,
+    );
+
+    return {
+      inserted: toInsert.length,
+      skipped: chunks.length - toInsert.length,
+    };
+  }
   async retrieve(query: string, topK = 5): Promise<RetrievedChunk[]> {
     const [queryEmbedding] = await this.embedTexts([query], 'query');
     const vectorLiteral = this.toVectorLiteral(queryEmbedding);
