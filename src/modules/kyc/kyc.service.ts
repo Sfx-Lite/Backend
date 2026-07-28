@@ -354,4 +354,10 @@ export class KycService {
       );
     }
   }
+
+  async countPending(): Promise<number> {
+    return this.submissions.count({
+      where: { status: KycSubmissionStatus.PENDING },
+    });
+  }
 }
