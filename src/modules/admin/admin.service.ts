@@ -29,9 +29,10 @@ export class AdminService {
     const sevenDaysAgo = new Date(
       Date.now() - VOLUME_WINDOW_DAYS * 24 * 60 * 60 * 1000,
     );
-    const volume = await this.transactionsService.getVolumeSince(sevenDaysAgo);
-
-    const pendingKyc = await this.kycService.countPending();
+    const [volume, pendingKyc] = await Promise.all([
+      this.transactionsService.getVolumeSince(sevenDaysAgo),
+      this.kycService.countPending(),
+    ]);
     const masterWallet = await this.getMasterWalletBalance();
 
     return { users, pendingKyc, volume, masterWallet };
