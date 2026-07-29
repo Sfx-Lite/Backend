@@ -8,6 +8,7 @@
   "scripts": {
     "prebuild": "node scripts/ensure-env.js",
     "build": "nest build",
+    "prepare": "npm run build",
     "type-check": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "prestart": "node scripts/ensure-env.js",
@@ -29,9 +30,11 @@
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
     "seed": "ts-node src/database/seed.ts",
-    "wallet:check": "ts-node scripts/check-master-wallet.ts"
+    "wallet:check": "ts-node scripts/check-master-wallet.ts",
+    "cli": "ts-node -r tsconfig-paths/register src/cli.ts"
   },
   "dependencies": {
+    "@clack/prompts": "^1.7.0",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
@@ -58,6 +61,7 @@
     "ioredis": "^5.11.1",
     "joi": "^18.2.3",
     "multer": "^2.2.0",
+    "nest-commander": "^3.20.1",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "passport-jwt": "^4.0.1",
@@ -65,7 +69,8 @@
     "reflect-metadata": "^0.2.2",
     "resend": "^6.18.0",
     "rxjs": "^7.8.1",
-    "typeorm": "^0.3.30"
+    "typeorm": "^0.3.30",
+    "voyageai": "^0.4.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
