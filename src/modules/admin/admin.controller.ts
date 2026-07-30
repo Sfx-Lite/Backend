@@ -1,8 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiForbiddenResponse,
+  ApiOkResponse,
   ApiOperation,
-  ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 
@@ -19,6 +20,23 @@ export class AdminController {
 
   @Get('test')
   @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Smoke-test admin authorization',
+    description:
+      'Returns a fixed payload if the caller holds an admin/super_admin role. ' +
+      'Used to verify the Roles guard is wired up.',
+  })
+  @ApiOkResponse({
+    description: 'Admin access granted.',
+    schema: {
+      example: {
+        status: true,
+        message: 'Success',
+        data: { message: 'Admin access granted' },
+      },
+    },
+  })
+  @ApiForbiddenResponse({ description: 'Caller is not an admin.' })
   testAdminAccess() {
     return { message: 'Admin access granted' };
   }
@@ -26,7 +44,22 @@ export class AdminController {
   @Get('metrics/dashboard')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Get admin dashboard overview stats' })
-  @ApiResponse({ status: 200, type: StatsOverviewResponseDto })
+  @ApiOkResponse({
+    description: 'Dashboard overview stats.',
+    schema: {
+      example: {
+        status: true,
+        message: 'Success',
+        data: {
+          users: { total: 1200, active: 1150, inactive: 50 },
+          pendingKyc: 8,
+          volume: 45230.75,
+          masterWallet: 98765.43,
+        },
+      },
+    },
+  })
+  @ApiForbiddenResponse({ description: 'Caller is not an admin.' })
   async getStatsOverview(): Promise<StatsOverviewResponseDto> {
     return this.adminService.getStatsOverview();
   }
