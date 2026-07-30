@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -89,6 +90,23 @@ export class TransactionsController {
     description:
       'Requires a verified KYC status — sending is locked until the user is ' +
       'verified. Deposits and receiving remain open pre-KYC.',
+  })
+  @ApiBody({ type: TransferDto })
+  @ApiOkResponse({
+    description: 'Transfer posted successfully.',
+    schema: {
+      example: {
+        status: true,
+        message: 'Transfer successful',
+        data: {
+          transactionId: '3f0c1e2a-9b7d-4c3e-8a1f-2b6d5e4c7a90',
+          amount: '10.5',
+          asset: 'USDC',
+          recipient: 'bob',
+          balanceAfter: '9.500000',
+        },
+      },
+    },
   })
   @ApiForbiddenResponse({
     description:

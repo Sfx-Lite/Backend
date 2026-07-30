@@ -17,6 +17,8 @@ import {
   ApiConsumes,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 
@@ -28,10 +30,26 @@ import {
   ListKycSubmissionsQueryDto,
   ReviewKycSubmissionDto,
 } from './dto/kyc.dto';
+import { KycSubmissionStatus } from './enums/kyc-submission-status.enum';
 import { KycService } from './kyc.service';
 import type { KycSubmissionFiles } from './kyc.types';
 
 const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024; // 5MB per file
+
+/** A representative KYC submission row (admin view), for Swagger examples. */
+const EXAMPLE_SUBMISSION = {
+  id: '9b2f1c3d-4e5a-6b7c-8d9e-0f1a2b3c4d5e',
+  userId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  docType: 'passport',
+  docUrl: 'https://res.cloudinary.com/sfx/kyc/documents/abc123.jpg',
+  selfieUrl: 'https://res.cloudinary.com/sfx/kyc/selfies/def456.jpg',
+  status: 'pending',
+  reason: null,
+  reviewedBy: null,
+  reviewedAt: null,
+  createdAt: '2026-07-24T10:15:00.000Z',
+  updatedAt: '2026-07-24T10:15:00.000Z',
+};
 
 @ApiTags('kyc')
 @Controller('kyc')
@@ -60,7 +78,16 @@ export class KycController {
       required: ['docType', 'doc', 'selfie'],
     },
   })
-  @ApiOkResponse({ description: 'KYC submission received successfully.' })
+  @ApiOkResponse({
+    description: 'KYC submission received successfully.',
+    schema: {
+      example: {
+        status: true,
+        message: 'KYC submission received successfully',
+        data: EXAMPLE_SUBMISSION,
+      },
+    },
+  })
   @UseInterceptors(
     FileFieldsInterceptor(
       [
@@ -121,7 +148,25 @@ export class KycController {
       'Returns submissions oldest-first for the admin queue. Optionally ' +
       'filter by status (e.g. status=pending).',
   })
-  @ApiOkResponse({ description: 'KYC submissions retrieved successfully.' })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: KycSubmissionStatus,
+    example: KycSubmissionStatus.PENDING,
+    description:
+      'Filter the queue by submission status. Omit to return all submissions. ' +
+      'One of: pending, under_review, approved, rejected.',
+  })
+  @ApiOkResponse({
+    description: 'KYC submissions retrieved successfully.',
+    schema: {
+      example: {
+        status: true,
+        message: 'KYC submissions retrieved successfully',
+        data: [EXAMPLE_SUBMISSION],
+      },
+    },
+  })
   listSubmissions(@Query() query: ListKycSubmissionsQueryDto) {
     return this.kycService.listSubmissions(query.status);
   }
@@ -136,7 +181,22 @@ export class KycController {
       'side-by-side review. Opening a pending submission marks it ' +
       '"under_review".',
   })
-  @ApiOkResponse({ description: 'KYC submission retrieved successfully.' })
+  @ApiParam({
+    name: 'id',
+    format: 'uuid',
+    example: '9b2f1c3d-4e5a-6b7c-8d9e-0f1a2b3c4d5e',
+    description: 'The KYC submission id (UUID).',
+  })
+  @ApiOkResponse({
+    description: 'KYC submission retrieved successfully.',
+    schema: {
+      example: {
+        status: true,
+        message: 'KYC submission retrieved successfully',
+        data: { ...EXAMPLE_SUBMISSION, status: 'under_review' },
+      },
+    },
+  })
   getSubmission(@Param('id', new ParseUUIDPipe()) submissionId: string) {
     return this.kycService.getSubmissionForReview(submissionId);
   }
@@ -146,9 +206,33 @@ export class KycController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Approve or reject a KYC submission (admin only)',
+    description:
+      'Only an "under_review" submission can be actioned, so the admin must ' +
+      'open the detail view first. A `reason` is required when rejecting and ' +
+      'must be omitted when approving.',
+  })
+  @ApiParam({
+    name: 'id',
+    format: 'uuid',
+    example: '9b2f1c3d-4e5a-6b7c-8d9e-0f1a2b3c4d5e',
+    description: 'The KYC submission id (UUID).',
   })
   @ApiBody({ type: ReviewKycSubmissionDto })
-  @ApiOkResponse({ description: 'KYC submission reviewed successfully.' })
+  @ApiOkResponse({
+    description: 'KYC submission reviewed successfully.',
+    schema: {
+      example: {
+        status: true,
+        message: 'KYC submission approved successfully',
+        data: {
+          ...EXAMPLE_SUBMISSION,
+          status: 'approved',
+          reviewedBy: 'f0e1d2c3-b4a5-6789-0123-456789abcdef',
+          reviewedAt: '2026-07-24T11:00:00.000Z',
+        },
+      },
+    },
+  })
   reviewSubmission(
     @Param('id', new ParseUUIDPipe()) submissionId: string,
     @CurrentUser('sub') adminId: string,
