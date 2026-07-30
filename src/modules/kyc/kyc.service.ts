@@ -25,6 +25,8 @@ const IN_PROGRESS_STATUSES: readonly KycSubmissionStatus[] = [
   KycSubmissionStatus.UNDER_REVIEW,
 ];
 
+const SIGNED_URL_EXPIRY_SECONDS = 10 * 60;
+
 // Maps a kyc_submissions.status to the users.kyc_status it should drive.
 // Only terminal/queued outcomes are represented — a submission status with
 // no entry here leaves the user's kycStatus untouched.
@@ -55,7 +57,7 @@ export class KycService {
    * User-facing submission: uploads the document + selfie to private storage
    * and opens a new kyc_submissions row in `pending`. A user can only have one
    * submission in flight at a time (pending or under_review); once a previous
-   * one is approved or rejected they may submit again (resubmit).
+   * one is approved or rejected they may submit again.
    */
   async submitSubmission(
     userId: string,
@@ -111,7 +113,7 @@ export class KycService {
 
   /**
    * Admin queue: submissions oldest-first so the longest-waiting user is
-   * reviewed next. Optionally filtered by status (e.g. only `pending`).
+   * reviewed next. Optionally filtered by status.
    */
   async listSubmissions(status?: KycSubmissionStatus) {
     const submissions = await this.submissions.find({
@@ -124,8 +126,7 @@ export class KycService {
 
   /**
    * User-facing status: the caller's overall kyc_status plus a summary of their
-   * latest submission (progress + rejection reason on resubmit), without
-   * exposing the private document/selfie URLs.
+   * latest submission without exposing private document or selfie URLs.
    */
   async getMyStatus(userId: string) {
     const [user, submission] = await Promise.all([
@@ -158,9 +159,10 @@ export class KycService {
   }
 
   /**
-   * Admin detail view. Opening a `pending` submission moves it to
-   * `under_review` — this is the one legal path to that state, and it records
-   * that an admin has picked the submission up before deciding on it.
+   * Admin detail view.
+   *
+   * Opening a pending submission moves it to under_review. The response
+   * contains time-limited signed Cloudinary URLs for the document and selfie.
    */
   async getSubmissionForReview(submissionId: string) {
     const submission = await this.submissions.findOne({
@@ -178,17 +180,39 @@ export class KycService {
       );
 
       submission.status = KycSubmissionStatus.UNDER_REVIEW;
+
       await this.submissions.save(submission);
       await this.syncUserKycStatus(submission.userId, submission.status);
     }
 
-    return sendResponse(submission, 'KYC submission retrieved successfully');
+    const [signedDocUrl, signedSelfieUrl] = await Promise.all([
+      Promise.resolve(
+        this.uploadsService.generateSignedDownloadUrl(
+          submission.docUrl,
+          SIGNED_URL_EXPIRY_SECONDS,
+        ),
+      ),
+      Promise.resolve(
+        this.uploadsService.generateSignedDownloadUrl(
+          submission.selfieUrl,
+          SIGNED_URL_EXPIRY_SECONDS,
+        ),
+      ),
+    ]);
+
+    return sendResponse(
+      {
+        ...submission,
+        docUrl: signedDocUrl,
+        selfieUrl: signedSelfieUrl,
+        urlsExpireInSeconds: SIGNED_URL_EXPIRY_SECONDS,
+      },
+      'KYC submission retrieved successfully',
+    );
   }
 
   /**
-   * Admin decision: approve or reject a submission that is under review. The
-   * status machine enforces that only an `under_review` submission can be
-   * actioned, so an admin must open the detail view (which claims it) first.
+   * Admin decision: approve or reject a submission that is under review.
    */
   async reviewSubmission(
     submissionId: string,
@@ -226,6 +250,7 @@ export class KycService {
       updatedSubmission.userId,
       updatedSubmission.status,
     );
+
     await this.notifyDecision(updatedSubmission);
 
     const message =
@@ -237,10 +262,7 @@ export class KycService {
   }
 
   /**
-   * Keeps users.kyc_status aligned with the kyc_submissions status that
-   * drives it. Runs as a plain local write (no try/catch) — unlike email
-   * delivery, a failure here should surface and fail the request, since a
-   * submission left out of sync with the user's profile is a data bug.
+   * Keeps users.kyc_status aligned with the submission status.
    */
   private async syncUserKycStatus(
     userId: string,
@@ -262,10 +284,7 @@ export class KycService {
   }
 
   /**
-   * Fires the user notifications for a KYC decision: an in-app notification
-   * (so it shows in the notification center) and an email. Both are best
-   * effort — a delivery failure is logged but never rolls back the decision,
-   * which is already committed to the database.
+   * Sends in-app and email notifications after a KYC decision.
    */
   private async notifyDecision(submission: KycSubmission): Promise<void> {
     if (
