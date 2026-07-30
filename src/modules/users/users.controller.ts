@@ -38,6 +38,7 @@ const EXAMPLE_PROFILE = {
   firstName: 'John',
   middleName: null,
   lastName: 'Doe',
+  profileImage: 'https://cdn.example.com/avatars/johndoe.jpg',
   streetAddress1: '12 Marina Road',
   streetAddress2: null,
   city: 'Lagos',
@@ -153,7 +154,9 @@ export class UsersController {
     summary: 'Check whether a username is available',
     description:
       'Public endpoint for live "username available / taken" feedback on the ' +
-      'signup form. Returns the queried username and an `available` boolean.',
+      'signup form, and for resolving a recipient on the send screen. Returns ' +
+      'the queried username, an `available` boolean, and — when the username ' +
+      'is taken — the owner’s `profileImage` (null if they have none).',
   })
   @ApiParam({
     name: 'username',
@@ -163,12 +166,16 @@ export class UsersController {
   })
   @ApiOkResponse({
     description:
-      'Availability result — { status, message, data: { username, available } }.',
+      'Availability result — { status, message, data: { username, available, profileImage } }.',
     schema: {
       example: {
         status: true,
-        message: 'Username is available',
-        data: { username: 'johndoe', available: true },
+        message: 'Username is already taken',
+        data: {
+          username: 'johndoe',
+          available: false,
+          profileImage: 'https://cdn.example.com/avatars/johndoe.jpg',
+        },
       },
     },
   })
