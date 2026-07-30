@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { HealthCheck } from '@nestjs/terminus';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../../common/decorators/public.decorator';
@@ -23,6 +23,23 @@ export class HealthController {
   @Public()
   @SkipThrottle()
   @ApiOperation({ summary: 'Fast process liveness with no I/O' })
+  @ApiOkResponse({
+    description: 'The process is up.',
+    schema: {
+      example: {
+        status: true,
+        message: 'Service is live',
+        data: {
+          status: 'ok',
+          service: 'sfx-lite-api',
+          env: 'development',
+          version: 'v1',
+          uptimeSeconds: 3600,
+          timestamp: '2026-07-24T12:30:00.000Z',
+        },
+      },
+    },
+  })
   live() {
     return this.healthService.liveness();
   }
@@ -34,6 +51,17 @@ export class HealthController {
   @HealthCheck()
   @ApiOperation({
     summary: 'Liveness + DB + memory health (used by Render + uptime pings)',
+  })
+  @ApiOkResponse({
+    description: 'Terminus health-check result (raw, not enveloped).',
+    schema: {
+      example: {
+        status: 'ok',
+        info: { postgres: { status: 'up' } },
+        error: {},
+        details: { postgres: { status: 'up' } },
+      },
+    },
   })
   ready() {
     return this.healthService.readiness();

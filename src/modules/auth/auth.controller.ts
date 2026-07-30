@@ -22,6 +22,26 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SetPinDto } from './dto/set-pin.dto';
 import { VerifyPinDto } from './dto/verify-pin.dto';
 
+/** The public user object returned inside every auth session response. */
+const EXAMPLE_AUTH_USER = {
+  id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  username: 'johndoe',
+  email: 'john@example.com',
+  mobileNumber: '+2348012345678',
+  firstName: 'John',
+  lastName: 'Doe',
+  country: 'NG',
+  tier: 1,
+  role: 'user',
+  kycStatus: 'unverified',
+};
+
+/** A representative access + refresh token pair, for Swagger examples. */
+const EXAMPLE_TOKENS = {
+  accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.<access>.<sig>',
+  refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.<refresh>.<sig>',
+};
+
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
@@ -37,7 +57,16 @@ export class AuthController {
       'Fails if a PIN has already been set.',
   })
   @ApiBody({ type: SetPinDto })
-  @ApiOkResponse({ description: 'Transaction PIN set successfully.' })
+  @ApiOkResponse({
+    description: 'Transaction PIN set successfully.',
+    schema: {
+      example: {
+        status: true,
+        message: 'Transaction PIN set successfully',
+        data: null,
+      },
+    },
+  })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
   setPin(@CurrentUser('sub') userId: string, @Body() dto: SetPinDto) {
     return this.authService.setPin(userId, dto.pin);
@@ -53,7 +82,16 @@ export class AuthController {
       'Locks out for 15 minutes after 5 consecutive failed attempts.',
   })
   @ApiBody({ type: VerifyPinDto })
-  @ApiOkResponse({ description: 'Transaction PIN verified successfully.' })
+  @ApiOkResponse({
+    description: 'Transaction PIN verified successfully.',
+    schema: {
+      example: {
+        status: true,
+        message: 'Transaction PIN verified successfully',
+        data: { verified: true },
+      },
+    },
+  })
   @ApiUnauthorizedResponse({
     description: 'Missing/invalid access token, or incorrect PIN.',
   })
@@ -122,7 +160,21 @@ export class AuthController {
   @ApiBody({ type: GoogleVerifyDto })
   @ApiOkResponse({
     description:
-      'Google login successful — returns { status, message, data: { accessToken, refreshToken, user } }.',
+      'Google login successful. The `user` object includes the current ' +
+      '`kycStatus` (unverified / pending / verified / rejected). `isNewUser` ' +
+      'is true when the account was created during this sign-in.',
+    schema: {
+      example: {
+        status: true,
+        message: 'Google login successful',
+        data: {
+          ...EXAMPLE_TOKENS,
+          user: EXAMPLE_AUTH_USER,
+          isNewUser: false,
+          isPin: false,
+        },
+      },
+    },
   })
   @ApiUnauthorizedResponse({
     description:
@@ -137,6 +189,23 @@ export class AuthController {
   @Public()
   @ApiOperation({
     summary: 'Register a new user and issue an access + refresh token pair',
+  })
+  @ApiBody({ type: RegisterDto })
+  @ApiOkResponse({
+    description:
+      'Registration successful — returns a token pair plus the new user ' +
+      '(a freshly registered account starts with kycStatus "unverified").',
+    schema: {
+      example: {
+        status: true,
+        message: 'Registration successful',
+        data: {
+          ...EXAMPLE_TOKENS,
+          user: EXAMPLE_AUTH_USER,
+          isPin: false,
+        },
+      },
+    },
   })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
@@ -156,7 +225,21 @@ export class AuthController {
   @ApiBody({ type: LoginDto })
   @ApiOkResponse({
     description:
-      'Login successful — returns { data: { accessToken, refreshToken, user } }.',
+      'Login successful. The `user` object includes the current `kycStatus` ' +
+      '(unverified / pending / verified / rejected) so the client can route ' +
+      'the user to KYC when needed. `isPin` indicates whether a transaction ' +
+      'PIN has been set.',
+    schema: {
+      example: {
+        status: true,
+        message: 'Login successful',
+        data: {
+          ...EXAMPLE_TOKENS,
+          user: EXAMPLE_AUTH_USER,
+          isPin: false,
+        },
+      },
+    },
   })
   @ApiUnauthorizedResponse({ description: 'Invalid credentials.' })
   @ApiForbiddenResponse({
@@ -181,7 +264,25 @@ export class AuthController {
   @ApiBody({ type: LoginDto })
   @ApiOkResponse({
     description:
-      'Admin login successful — returns { data: { accessToken, refreshToken, user } }.',
+      'Admin login successful — returns a token pair plus the admin user ' +
+      '(role admin or super_admin).',
+    schema: {
+      example: {
+        status: true,
+        message: 'Login successful',
+        data: {
+          ...EXAMPLE_TOKENS,
+          user: {
+            ...EXAMPLE_AUTH_USER,
+            username: 'root_admin',
+            email: 'admin@sfxlite.com',
+            role: 'super_admin',
+            kycStatus: 'unverified',
+          },
+          isPin: false,
+        },
+      },
+    },
   })
   @ApiUnauthorizedResponse({ description: 'Invalid credentials.' })
   @ApiForbiddenResponse({
@@ -194,6 +295,20 @@ export class AuthController {
   @Post('refresh')
   @Public()
   @ApiOperation({ summary: 'Issue a fresh token pair from a refresh token' })
+  @ApiBody({ type: RefreshDto })
+  @ApiOkResponse({
+    description: 'A fresh access + refresh token pair.',
+    schema: {
+      example: {
+        status: true,
+        message: 'Token refreshed',
+        data: EXAMPLE_TOKENS,
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({
+    description: 'The refresh token is invalid or has expired.',
+  })
   refresh(@Body() dto: RefreshDto) {
     return this.authService.refresh(dto.refreshToken);
   }
@@ -210,7 +325,16 @@ export class AuthController {
   @ApiBody({ type: ForgotPasswordDto })
   @ApiOkResponse({
     description:
-      'A reset link has been sent if the email belongs to an eligible account.',
+      'A reset link has been sent if the email belongs to an eligible account. ' +
+      'The response is identical whether or not the email is registered.',
+    schema: {
+      example: {
+        status: true,
+        message:
+          'If an account exists for that email, a password reset link has been sent.',
+        data: null,
+      },
+    },
   })
   forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto);
@@ -230,7 +354,17 @@ export class AuthController {
     description: 'The password reset token from the emailed link.',
   })
   @ApiBody({ type: ResetPasswordDto })
-  @ApiOkResponse({ description: 'Password has been reset successfully.' })
+  @ApiOkResponse({
+    description: 'Password has been reset successfully.',
+    schema: {
+      example: {
+        status: true,
+        message:
+          'Password has been reset successfully. You can now log in with your new password.',
+        data: null,
+      },
+    },
+  })
   @ApiUnauthorizedResponse({
     description: 'The reset token is invalid or has expired.',
   })

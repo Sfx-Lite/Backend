@@ -83,6 +83,23 @@ export class NotificationsController {
   @ApiOperation({
     summary: "Mark one of the current user's notifications as read",
   })
+  @ApiOkResponse({
+    description: 'The notification, now marked read.',
+    schema: {
+      example: {
+        status: true,
+        message: 'Notification marked as read',
+        data: {
+          id: '3f0c1e2a-9b7d-4c3e-8a1f-2b6d5e4c7a90',
+          type: 'kyc',
+          title: 'Identity verified',
+          body: 'Your KYC submission has been approved.',
+          readAt: '2026-07-24T13:00:00.000Z',
+          createdAt: '2026-07-24T12:30:00.000Z',
+        },
+      },
+    },
+  })
   @ApiNotFoundResponse({
     description: 'No notification with that id belongs to the caller.',
     schema: {
@@ -109,6 +126,16 @@ export class NotificationsController {
   @Patch('read-all')
   @ApiOperation({
     summary: "Mark all of the current user's unread notifications as read",
+  })
+  @ApiOkResponse({
+    description: 'How many notifications were updated.',
+    schema: {
+      example: {
+        status: true,
+        message: 'All notifications marked as read',
+        data: { updated: 3 },
+      },
+    },
   })
   async markAllAsRead(@CurrentUser('sub') userId: string) {
     if (!userId) {

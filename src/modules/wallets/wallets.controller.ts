@@ -1,5 +1,10 @@
 import { Controller, Get, UnauthorizedException } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { sendResponse } from '../../common/utils/response.util';
@@ -26,6 +31,20 @@ export class WalletsController {
   @ApiOperation({
     summary: "Get the current user's USDC deposit address (Polygon Amoy)",
   })
+  @ApiOkResponse({
+    description: 'The caller’s USDC deposit address.',
+    schema: {
+      example: {
+        status: true,
+        message: 'Deposit address',
+        data: {
+          asset: 'USDC',
+          network: 'polygon-amoy',
+          depositAddress: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+        },
+      },
+    },
+  })
   async address(@CurrentUser('sub') userId: string) {
     if (!userId) {
       throw new UnauthorizedException();
@@ -49,6 +68,20 @@ export class WalletsController {
   @Get('balance')
   @ApiOperation({
     summary: "Get the current user's in-app USDC balance (from the ledger)",
+  })
+  @ApiOkResponse({
+    description: 'The caller’s spendable in-app balance (decimal string).',
+    schema: {
+      example: {
+        status: true,
+        message: 'Wallet balance',
+        data: {
+          asset: 'USDC',
+          network: 'polygon-amoy',
+          balance: '20.500000',
+        },
+      },
+    },
   })
   async balance(@CurrentUser('sub') userId: string) {
     if (!userId) {

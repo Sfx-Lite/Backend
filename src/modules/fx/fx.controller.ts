@@ -35,9 +35,32 @@ export class FxController {
       '(USD, NGN, TRY, EUR, GBP, ZAR, KES), pivoting through USD when needed. ' +
       'Informational only.',
   })
-  @ApiQuery({ name: 'base', example: 'USD' })
-  @ApiQuery({ name: 'quote', example: 'NGN' })
-  @ApiOkResponse({ description: 'Latest exchange rate for the pair.' })
+  @ApiQuery({
+    name: 'base',
+    example: 'USD',
+    description:
+      'Base currency (3-letter ISO). One of: USD, NGN, TRY, EUR, GBP, ZAR, KES.',
+  })
+  @ApiQuery({
+    name: 'quote',
+    example: 'NGN',
+    description:
+      'Quote currency (3-letter ISO). One of: USD, NGN, TRY, EUR, GBP, ZAR, KES.',
+  })
+  @ApiOkResponse({
+    description: 'Latest exchange rate for the pair.',
+    schema: {
+      example: {
+        status: true,
+        message: 'Success',
+        data: {
+          baseCurrency: 'USD',
+          quoteCurrency: 'NGN',
+          rate: 1650.25,
+        },
+      },
+    },
+  })
   async getLatestRate(
     @Query('base') base: string,
     @Query('quote') quote: string,

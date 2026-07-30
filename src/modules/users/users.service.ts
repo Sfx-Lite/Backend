@@ -6,10 +6,19 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository, IsNull, Not } from 'typeorm';
+import {
+  FindOptionsWhere,
+  ILike,
+  In,
+  Repository,
+  IsNull,
+  Not,
+} from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
 import { sendResponse } from '../../common/utils/response.util';
+import { ListUsersQueryDto } from './dto/list-users.query.dto';
+import { UpdateKycStatusDto } from './dto/update-kyc-status.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { User } from './entities/user.entity';
@@ -41,6 +50,21 @@ export class UsersService {
       role: user.role,
       kycStatus: user.kycStatus,
       isPin: Boolean(user.pinHash),
+    };
+  }
+
+  /**
+   * Shape a User row into the payload admin endpoints return. Includes the
+   * account's suspension state and timestamps, which the self-profile payload
+   * deliberately omits.
+   */
+  private toAdminUser(user: User) {
+    return {
+      ...this.toProfile(user),
+      suspended: Boolean(user.suspendedAt),
+      suspendedAt: user.suspendedAt ?? null,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
     };
   }
 
@@ -162,6 +186,104 @@ export class UsersService {
     return sendResponse(
       { username, available },
       available ? 'Username is available' : 'Username is already taken',
+    );
+  }
+
+  /**
+   * GET /users (admin) — paginated, filterable list of all users. Returns the
+   * page of users plus the total count so the client can render pagination.
+   */
+  async listUsers(query: ListUsersQueryDto) {
+    const { limit, offset, search, role, kycStatus, suspended } = query;
+
+    // Column filters shared by every OR-branch of the search.
+    const baseWhere: FindOptionsWhere<User> = {};
+    if (role !== undefined) {
+      baseWhere.role = role;
+    }
+    if (kycStatus !== undefined) {
+      baseWhere.kycStatus = kycStatus;
+    }
+    if (suspended !== undefined) {
+      baseWhere.suspendedAt = suspended === 'true' ? Not(IsNull()) : IsNull();
+    }
+
+    // Free-text search matches username OR email, so build one where-clause per
+    // searchable column (TypeORM ORs an array of where objects together).
+    const where: FindOptionsWhere<User> | FindOptionsWhere<User>[] = search
+      ? [
+          { ...baseWhere, username: ILike(`%${search}%`) },
+          { ...baseWhere, email: ILike(`%${search}%`) },
+        ]
+      : baseWhere;
+
+    const [rows, total] = await this.users.findAndCount({
+      where,
+      order: { createdAt: 'DESC' },
+      take: limit,
+      skip: offset,
+    });
+
+    return sendResponse(
+      {
+        users: rows.map((user) => this.toAdminUser(user)),
+        total,
+        limit,
+        offset,
+      },
+      'Users retrieved successfully',
+    );
+  }
+
+  /** GET /users/:id (admin) — full detail for a single user. */
+  async getUserById(id: string) {
+    const user = await this.users.findOne({ where: { id } });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return sendResponse(this.toAdminUser(user), 'User retrieved successfully');
+  }
+
+  /**
+   * PATCH /users/:id/status (admin) — toggle an account's suspension state.
+   * Stamps suspendedAt when the user is currently active, clears it when they
+   * are currently suspended.
+   */
+  async toggleUserStatus(id: string) {
+    const user = await this.users.findOne({ where: { id } });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const nowSuspended = !user.suspendedAt;
+    user.suspendedAt = nowSuspended ? new Date() : null;
+    const saved = await this.users.save(user);
+
+    return sendResponse(
+      this.toAdminUser(saved),
+      nowSuspended
+        ? 'User suspended successfully'
+        : 'User unsuspended successfully',
+    );
+  }
+
+  /** PATCH /users/:id/kyc-status (admin) — override a user's KYC status. */
+  async updateKycStatus(id: string, dto: UpdateKycStatusDto) {
+    const user = await this.users.findOne({ where: { id } });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    user.kycStatus = dto.kycStatus;
+    const saved = await this.users.save(user);
+
+    return sendResponse(
+      this.toAdminUser(saved),
+      'KYC status updated successfully',
     );
   }
 

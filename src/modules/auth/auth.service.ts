@@ -119,6 +119,7 @@ export class AuthService {
       country: user.country,
       tier: user.tier,
       role: user.role,
+      kycStatus: user.kycStatus,
     };
   }
 
