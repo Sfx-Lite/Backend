@@ -7,7 +7,7 @@ import {
 import { UploadApiResponse, v2 as cloudinary } from 'cloudinary';
 import { Readable } from 'stream';
 
-/** Allow-listed image types, by their real (magic-byte) signature. */
+/** Allow-listed image types, checked using their real file signatures. */
 const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/jpeg',
   'image/png',
@@ -15,23 +15,23 @@ const ALLOWED_IMAGE_MIME_TYPES = new Set([
 ]);
 
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+const DEFAULT_SIGNED_URL_EXPIRY_SECONDS = 10 * 60; // 10 minutes
+
+interface CloudinaryAssetReference {
+  publicId: string;
+  format: string;
+  deliveryType: 'upload' | 'private' | 'authenticated';
+}
 
 @Injectable()
 export class UploadsService {
   /**
-   * Validate a file BEFORE it's uploaded anywhere.
-   *  1. Size check — cheap, do it first.
-   *  2. Real type check via magic bytes (the `file-type` package sniffs the
-   *     actual file signature from the buffer), NOT the client-supplied
-   *     `file.mimetype` — that field comes straight from the request's
-   *     Content-Type header, which a caller can set to anything regardless
-   *     of what bytes they actually send. A renamed .exe with
-   *     `Content-Type: image/png` passes multer's own mimetype check but
-   *     fails this one, because its bytes don't start with a PNG signature.
+   * Validates an image before uploading it.
    *
-   * Centralized here (not in each controller) so every current and future
-   * caller of uploadImage() gets the same real validation for free, instead
-   * of each one re-implementing (or forgetting) it.
+   * Validation includes:
+   * - non-empty file
+   * - maximum file size
+   * - actual file type using magic bytes
    */
   private async validateImage(file: Express.Multer.File): Promise<void> {
     if (!file?.buffer?.length) {
@@ -44,8 +44,6 @@ export class UploadsService {
       );
     }
 
-    // file-type is ESM-only from v17+; dynamic import keeps this file
-    // CommonJS-compatible (matches the rest of the NestJS build).
     const { fileTypeFromBuffer } = await import('file-type');
     const detected = await fileTypeFromBuffer(file.buffer);
 
@@ -58,6 +56,9 @@ export class UploadsService {
     }
   }
 
+  /**
+   * Uploads a validated image to Cloudinary.
+   */
   async uploadImage(
     file: Express.Multer.File,
     folder = 'kyc',
@@ -74,10 +75,16 @@ export class UploadsService {
             folder,
             resource_type: 'image',
           },
-          (error, result) => {
-            if (error) return reject(new Error(error.message));
-            if (!result) return reject(new Error('Upload failed'));
-            resolve(result);
+          (error, uploadResult) => {
+            if (error) {
+              return reject(new Error(error.message));
+            }
+
+            if (!uploadResult) {
+              return reject(new Error('Upload failed'));
+            }
+
+            resolve(uploadResult);
           },
         );
 
@@ -88,14 +95,129 @@ export class UploadsService {
         url: result.secure_url,
         publicId: result.public_id,
       };
-    } catch (err) {
-      // A BadRequestException from validateImage should never reach here,
-      // but guard anyway so a real Cloudinary failure isn't masked.
-      if (err instanceof BadRequestException) {
-        throw err;
+    } catch (error: unknown) {
+      if (error instanceof BadRequestException) {
+        throw error;
       }
+
       throw new InternalServerErrorException(
         'Failed to upload image to Cloudinary',
+      );
+    }
+  }
+
+  /**
+   * Generates a time-limited signed Cloudinary URL.
+   *
+   * The default expiry time is 10 minutes.
+   */
+  generateSignedDownloadUrl(
+    assetUrl: string,
+    expiresInSeconds = DEFAULT_SIGNED_URL_EXPIRY_SECONDS,
+  ): string {
+    if (!Number.isInteger(expiresInSeconds) || expiresInSeconds <= 0) {
+      throw new BadRequestException(
+        'Signed URL expiry must be a positive number of seconds',
+      );
+    }
+
+    const { publicId, format, deliveryType } =
+      this.extractCloudinaryAssetReference(assetUrl);
+
+    const expiresAt = Math.floor(Date.now() / 1000) + expiresInSeconds;
+
+    try {
+      return cloudinary.utils.private_download_url(publicId, format, {
+        resource_type: 'image',
+        type: deliveryType,
+        expires_at: expiresAt,
+        attachment: false,
+      });
+    } catch {
+      throw new InternalServerErrorException(
+        'Unable to generate secure KYC image URL',
+      );
+    }
+  }
+
+  /**
+   * Extracts the public ID, format and delivery type from a Cloudinary URL.
+   *
+   * Example:
+   * https://res.cloudinary.com/demo/image/upload/v123/kyc/documents/doc.jpg
+   *
+   * Result:
+   * {
+   *   publicId: 'kyc/documents/doc',
+   *   format: 'jpg',
+   *   deliveryType: 'upload'
+   * }
+   */
+  private extractCloudinaryAssetReference(
+    assetUrl: string,
+  ): CloudinaryAssetReference {
+    try {
+      const parsedUrl = new URL(assetUrl);
+
+      if (parsedUrl.protocol !== 'https:') {
+        throw new Error('Cloudinary URL must use HTTPS');
+      }
+
+      if (
+        parsedUrl.hostname !== 'res.cloudinary.com' &&
+        !parsedUrl.hostname.endsWith('.res.cloudinary.com')
+      ) {
+        throw new Error('URL is not a Cloudinary delivery URL');
+      }
+
+      const pathSegments = parsedUrl.pathname.split('/').filter(Boolean);
+
+      const deliveryTypes = ['upload', 'private', 'authenticated'] as const;
+
+      const deliveryTypeIndex = pathSegments.findIndex((segment) =>
+        deliveryTypes.includes(segment as (typeof deliveryTypes)[number]),
+      );
+
+      if (deliveryTypeIndex === -1) {
+        throw new Error('Unsupported Cloudinary delivery type');
+      }
+
+      const deliveryType = pathSegments[
+        deliveryTypeIndex
+      ] as CloudinaryAssetReference['deliveryType'];
+
+      let assetSegments = pathSegments.slice(deliveryTypeIndex + 1);
+
+      if (/^v\d+$/.test(assetSegments[0] ?? '')) {
+        assetSegments = assetSegments.slice(1);
+      }
+
+      if (assetSegments.length === 0) {
+        throw new Error('Cloudinary asset path is missing');
+      }
+
+      const assetPath = decodeURIComponent(assetSegments.join('/'));
+      const extensionIndex = assetPath.lastIndexOf('.');
+
+      if (extensionIndex <= 0 || extensionIndex === assetPath.length - 1) {
+        throw new Error('Cloudinary asset format is missing');
+      }
+
+      const publicId = assetPath.slice(0, extensionIndex);
+      const format = assetPath.slice(extensionIndex + 1).toLowerCase();
+
+      if (!publicId || !format) {
+        throw new Error('Invalid Cloudinary asset reference');
+      }
+
+      return {
+        publicId,
+        format,
+        deliveryType,
+      };
+    } catch {
+      throw new InternalServerErrorException(
+        'Unable to generate secure KYC image URL',
       );
     }
   }
