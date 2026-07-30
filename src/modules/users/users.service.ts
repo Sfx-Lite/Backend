@@ -17,6 +17,9 @@ import {
 import * as bcrypt from 'bcrypt';
 
 import { sendResponse } from '../../common/utils/response.util';
+import { AuditService } from '../audit/audit.service';
+import { AuditCategory } from '../audit/enums/audit-category.enum';
+import { AuditLevel } from '../audit/enums/audit-level.enum';
 import { ListUsersQueryDto } from './dto/list-users.query.dto';
 import { UpdateKycStatusDto } from './dto/update-kyc-status.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
@@ -29,6 +32,7 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly users: Repository<User>,
+    private readonly auditService: AuditService,
   ) {}
 
   /** Shape a User row into the payload the profile page consumes. */
@@ -251,7 +255,7 @@ export class UsersService {
    * Stamps suspendedAt when the user is currently active, clears it when they
    * are currently suspended.
    */
-  async toggleUserStatus(id: string) {
+  async toggleUserStatus(id: string, adminId?: string) {
     const user = await this.users.findOne({ where: { id } });
 
     if (!user) {
@@ -262,6 +266,16 @@ export class UsersService {
     user.suspendedAt = nowSuspended ? new Date() : null;
     const saved = await this.users.save(user);
 
+    await this.auditService.saveLog({
+      action: nowSuspended ? 'user.suspended' : 'user.unsuspended',
+      category: AuditCategory.USER,
+      level: AuditLevel.MEDIUM,
+      actorId: adminId ?? null,
+      entity: 'user',
+      entityId: saved.id,
+      metadata: { suspended: nowSuspended },
+    });
+
     return sendResponse(
       this.toAdminUser(saved),
       nowSuspended
@@ -271,15 +285,26 @@ export class UsersService {
   }
 
   /** PATCH /users/:id/kyc-status (admin) — override a user's KYC status. */
-  async updateKycStatus(id: string, dto: UpdateKycStatusDto) {
+  async updateKycStatus(id: string, dto: UpdateKycStatusDto, adminId?: string) {
     const user = await this.users.findOne({ where: { id } });
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
+    const previousStatus = user.kycStatus;
     user.kycStatus = dto.kycStatus;
     const saved = await this.users.save(user);
+
+    await this.auditService.saveLog({
+      action: 'user.kyc_status_updated',
+      category: AuditCategory.USER,
+      level: AuditLevel.MEDIUM,
+      actorId: adminId ?? null,
+      entity: 'user',
+      entityId: saved.id,
+      metadata: { previousStatus, newStatus: saved.kycStatus },
+    });
 
     return sendResponse(
       this.toAdminUser(saved),

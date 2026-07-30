@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
-import { HDNodeWallet, Mnemonic, getAddress } from 'ethers';
+import { HDNodeWallet, JsonRpcProvider, Mnemonic, getAddress } from 'ethers';
 
 import { env } from '../../config/env';
 import { LedgerService } from '../ledger/ledger.service';
@@ -95,6 +95,29 @@ export class WalletsService {
    */
   masterAddress(): string {
     return this.deriveAddress(WalletsService.MASTER_INDEX);
+  }
+
+  /**
+   * A SIGNING wallet for the master hot wallet, connected to the chain provider
+   * — used by the sweep (gas-drop) and withdrawal (broadcast) jobs. The private
+   * key stays inside the returned signer and is used only by Squad B's escrow
+   * services; it is never logged, returned to a client, or persisted.
+   */
+  masterSigner(provider: JsonRpcProvider): HDNodeWallet {
+    return this.signerForIndex(WalletsService.MASTER_INDEX, provider);
+  }
+
+  /**
+   * A SIGNING wallet for a user's deposit address at `index`, connected to the
+   * provider. The sweep job uses this to move a user's deposited USDC into the
+   * master wallet. Same key-handling rules as {@link masterSigner}.
+   */
+  signerForIndex(index: number, provider: JsonRpcProvider): HDNodeWallet {
+    const node = HDNodeWallet.fromMnemonic(
+      this.getMnemonic(),
+      WalletsService.derivationPath(index),
+    );
+    return node.connect(provider);
   }
 
   /**

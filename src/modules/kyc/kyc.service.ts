@@ -8,6 +8,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { sendResponse } from '../../common/utils/response.util';
+import { AuditService } from '../audit/audit.service';
+import { AuditCategory } from '../audit/enums/audit-category.enum';
+import { AuditLevel } from '../audit/enums/audit-level.enum';
 import { EmailService } from '../email/email.service';
 import { buildKycStatusEmail } from '../email/templates/kyc-status-email.template';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -49,6 +52,7 @@ export class KycService {
     private readonly emailService: EmailService,
     private readonly uploadsService: UploadsService,
     private readonly notificationsService: NotificationsService,
+    private readonly auditService: AuditService,
   ) {}
 
   /**
@@ -227,6 +231,21 @@ export class KycService {
       updatedSubmission.status,
     );
     await this.notifyDecision(updatedSubmission);
+
+    const approved = dto.status === KycSubmissionStatus.APPROVED;
+    await this.auditService.saveLog({
+      action: approved ? 'kyc.approved' : 'kyc.rejected',
+      category: AuditCategory.KYC,
+      level: AuditLevel.MEDIUM,
+      actorId: adminId,
+      entity: 'kyc_submission',
+      entityId: updatedSubmission.id,
+      metadata: {
+        userId: updatedSubmission.userId,
+        newStatus: updatedSubmission.status,
+        reason: updatedSubmission.reason ?? null,
+      },
+    });
 
     const message =
       dto.status === KycSubmissionStatus.APPROVED

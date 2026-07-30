@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Repository } from 'typeorm';
 
+import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UploadsService } from '../uploads/uploads.service';
@@ -27,6 +28,8 @@ describe('KycService', () => {
   let uploadsService: jest.Mocked<Pick<UploadsService, 'uploadImage'>>;
 
   let notificationsService: jest.Mocked<Pick<NotificationsService, 'create'>>;
+
+  let auditService: jest.Mocked<Pick<AuditService, 'saveLog'>>;
 
   beforeEach(async () => {
     submissionRepository = {
@@ -58,6 +61,11 @@ describe('KycService', () => {
     };
     notificationsService.create.mockResolvedValue({} as never);
 
+    auditService = {
+      saveLog: jest.fn(),
+    };
+    auditService.saveLog.mockResolvedValue(null);
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         KycService,
@@ -80,6 +88,10 @@ describe('KycService', () => {
         {
           provide: NotificationsService,
           useValue: notificationsService,
+        },
+        {
+          provide: AuditService,
+          useValue: auditService,
         },
       ],
     }).compile();

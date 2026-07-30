@@ -256,8 +256,11 @@ export class UsersController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
   @ApiForbiddenResponse({ description: 'Caller is not an admin.' })
   @ApiNotFoundResponse({ description: 'No user with that id.' })
-  toggleUserStatus(@Param('id', ParseUUIDPipe) id: string) {
-    return this.usersService.toggleUserStatus(id);
+  toggleUserStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('sub') adminId: string,
+  ) {
+    return this.usersService.toggleUserStatus(id, adminId);
   }
 
   @Patch(':id/kyc-status')
@@ -287,7 +290,8 @@ export class UsersController {
   updateKycStatus(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateKycStatusDto,
+    @CurrentUser('sub') adminId: string,
   ) {
-    return this.usersService.updateKycStatus(id, dto);
+    return this.usersService.updateKycStatus(id, dto, adminId);
   }
 }
