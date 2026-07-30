@@ -24,6 +24,8 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { FxModule } from './modules/fx/fx.module';
 import { FeesModule } from './modules/fees/fees.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
+import { AuditModule } from './modules/audit/audit.module';
+import { WithdrawalsModule } from './modules/withdrawals/withdrawals.module';
 
 // Cross-cutting middleware, guards, filters and interceptors
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
@@ -82,7 +84,8 @@ import { RagModule } from './modules/rag/rag.module';
     FxModule,
     FeesModule,
     UploadsModule,
-    AdminModule,
+    AuditModule,
+    WithdrawalsModule,
     RagModule,
   ],
   providers: [

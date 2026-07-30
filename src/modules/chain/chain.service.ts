@@ -7,9 +7,12 @@ import {
   Contract,
   EventLog,
   FetchRequest,
+  HDNodeWallet,
   JsonRpcProvider,
   formatUnits,
   getAddress,
+  parseEther,
+  parseUnits,
 } from 'ethers';
 
 import { env } from '../../config/env';
@@ -93,9 +96,99 @@ export class ChainService {
     return this.cachedUsdc;
   }
 
+  /**
+   * The shared provider, for the escrow jobs that need to connect a signer
+   * (sweep, withdrawal). Read-only callers should use the higher-level helpers
+   * below instead of touching the provider directly.
+   */
+  getProvider(): JsonRpcProvider {
+    return this.provider();
+  }
+
   /** Latest block height on Amoy. */
   getBlockNumber(): Promise<number> {
     return this.provider().getBlockNumber();
+  }
+
+  /** Native POL balance of an address (wei), used for gas-drop decisions. */
+  getNativeBalance(address: string): Promise<bigint> {
+    return this.provider().getBalance(getAddress(address));
+  }
+
+  /**
+   * Send native POL from `signer` to `to` (for gas-dropping a deposit address
+   * before its USDC can be swept). Waits 1 confirmation. Returns the tx hash.
+   */
+  async sendNative(
+    signer: HDNodeWallet,
+    to: string,
+    amountPol: string,
+  ): Promise<string> {
+    const tx = await signer.sendTransaction({
+      to: getAddress(to),
+      value: parseEther(amountPol),
+    });
+    await tx.wait(1);
+    this.logger.log(`Gas-drop ${amountPol} POL → ${to} (${tx.hash})`);
+    return tx.hash;
+  }
+
+  /**
+   * Broadcast a USDC transfer of `amount` (decimal string) from `signer` to
+   * `to`. Used by the sweep (deposit address → master) and the withdrawal
+   * (master → external). Returns the broadcast tx hash immediately after the
+   * node accepts it (confirmation is tracked separately).
+   */
+  async sendUsdc(
+    signer: HDNodeWallet,
+    to: string,
+    amount: string,
+  ): Promise<string> {
+    if (!env.chain.usdcAddress) {
+      throw new ServiceUnavailableException(
+        'Chain service unavailable: USDC_TOKEN_ADDRESS is not configured',
+      );
+    }
+    const decimals = await this.usdcDecimals();
+    const contract = new Contract(
+      getAddress(env.chain.usdcAddress),
+      ERC20_ABI,
+      signer,
+    );
+    const value = parseUnits(amount, decimals);
+    const tx = (await contract.transfer(getAddress(to), value)) as {
+      hash: string;
+    };
+    this.logger.log(`USDC ${amount} → ${to} broadcast (${tx.hash})`);
+    return tx.hash;
+  }
+
+  /** How many confirmations a tx has (0 if not yet mined / unknown). */
+  async getConfirmations(txHash: string): Promise<number> {
+    const receipt = await this.provider().getTransactionReceipt(txHash);
+    if (!receipt) {
+      return 0;
+    }
+    const head = await this.provider().getBlockNumber();
+    return Math.max(0, head - receipt.blockNumber + 1);
+  }
+
+  /**
+   * The settled status of a broadcast tx:
+   *  - 'success' — mined with status 1,
+   *  - 'failed'  — mined-but-reverted, OR dropped (no receipt and the node no
+   *    longer knows the tx),
+   *  - 'pending' — accepted but not yet mined.
+   */
+  async getReceiptStatus(
+    txHash: string,
+  ): Promise<'success' | 'failed' | 'pending'> {
+    const receipt = await this.provider().getTransactionReceipt(txHash);
+    if (receipt) {
+      return receipt.status === 1 ? 'success' : 'failed';
+    }
+    const tx = await this.provider().getTransaction(txHash);
+    return tx ? 'pending' : 'failed';
   }
 
   /** USDC decimals (6 on Amoy), read once then cached. Falls back to 6. */

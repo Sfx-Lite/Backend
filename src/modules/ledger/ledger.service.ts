@@ -68,6 +68,40 @@ export class LedgerService {
   ) {}
 
   /**
+   * Total platform liability in one asset: the sum of every user's CURRENT
+   * balance (each user's latest balance_after). Used by daily reconciliation to
+   * compare what we owe users against the USDC actually in custody.
+   *
+   * DISTINCT ON (user_id) with the same ordering as getBalance picks each
+   * user's newest entry; we sum those in one query rather than N.
+   */
+  async sumOfUserBalances(asset: string = DEFAULT_ASSET): Promise<string> {
+    const rows = await this.entries.query<Array<{ total: string }>>(
+      `SELECT COALESCE(SUM(latest.balance_after), 0)::text AS total
+         FROM (
+           SELECT DISTINCT ON (user_id) balance_after
+             FROM ledger_entries
+            WHERE asset = $1
+            ORDER BY user_id, created_at DESC, id DESC
+         ) latest`,
+      [asset],
+    );
+
+    return normalizeMoney(rows[0]?.total ?? '0');
+  }
+
+  /**
+   * All ledger legs posted under one transaction, oldest first (debit before
+   * credit for a transfer). Used by the admin transaction-detail drawer.
+   */
+  findByTransactionId(transactionId: string): Promise<LedgerEntry[]> {
+    return this.entries.find({
+      where: { transactionId },
+      order: { createdAt: 'ASC', id: 'ASC' },
+    });
+  }
+
+  /**
    * Current balance for a user in one asset: the `balance_after` of their most
    * recent entry, or zero if they have none. Pass a `manager` to read inside an
    * open transaction (e.g. right after posting).

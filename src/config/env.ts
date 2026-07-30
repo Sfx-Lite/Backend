@@ -104,6 +104,20 @@ export const env = {
     // the first poll isn't a big getLogs burst on a free RPC; overlap is safe
     // because crediting is idempotent.
     coldStartLookback: int(process.env.COLD_START_LOOKBACK, 120),
+
+    // ── Escrow sweep (Week 3) ──────────────────────────────────
+    // How often the sweep job runs (ms).
+    sweepIntervalMs: int(process.env.SWEEP_INTERVAL_MS, 60_000),
+    // POL sent to a funded deposit address so it can pay gas to move its USDC.
+    gasDropPol: process.env.GAS_DROP_POL ?? '0.02',
+    // Don't sweep dust below this USDC amount (avoids wasting gas).
+    sweepMinUsdc: process.env.SWEEP_MIN_USDC ?? '0.5',
+
+    // ── Withdrawals (Week 3) ───────────────────────────────────
+    // Confirmations before a withdrawal flips processing → successful.
+    withdrawalConfirmations: int(process.env.WITHDRAWAL_CONFIRMATIONS, 3),
+    // How often the withdrawal-confirmation job polls (ms).
+    withdrawalPollMs: int(process.env.WITHDRAWAL_POLL_MS, 30_000),
   },
 
   fees: {
