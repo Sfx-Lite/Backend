@@ -385,6 +385,49 @@ export class TransactionsService {
     return (result.affected ?? 0) > 0;
   }
 
+  /**
+   * Revenue summary over an optional created_at window. Counts SUCCESSFUL,
+   * non-sweep transactions (sweeps are internal custody moves, not business
+   * activity). `feeRevenue` is the platform's earnings — SUM(fee) — which today
+   * comes entirely from withdrawal fees (transfers and deposits carry no fee).
+   * Money values are returned as 6dp decimal strings; count as a number.
+   */
+  async getRevenueSummary(
+    from?: Date,
+    to?: Date,
+  ): Promise<{
+    totalTransactions: number;
+    totalVolume: string;
+    feeRevenue: string;
+  }> {
+    const qb = this.transactions
+      .createQueryBuilder('t')
+      .select('COUNT(*)', 'count')
+      .addSelect('COALESCE(SUM(t.amount), 0)::text', 'volume')
+      .addSelect('COALESCE(SUM(t.fee), 0)::text', 'fee')
+      .where('t.status = :status', { status: TransactionStatus.SUCCESSFUL })
+      .andWhere('t.type != :sweep', { sweep: TransactionType.SWEEP });
+
+    if (from) {
+      qb.andWhere('t.created_at >= :from', { from });
+    }
+    if (to) {
+      qb.andWhere('t.created_at <= :to', { to });
+    }
+
+    const row = await qb.getRawOne<{
+      count: string;
+      volume: string;
+      fee: string;
+    }>();
+
+    return {
+      totalTransactions: Number(row?.count ?? 0),
+      totalVolume: normalizeMoney(row?.volume ?? '0'),
+      feeRevenue: normalizeMoney(row?.fee ?? '0'),
+    };
+  }
+
   async getVolumeSince(from: Date): Promise<number> {
     const result = await this.transactions
       .createQueryBuilder('t')

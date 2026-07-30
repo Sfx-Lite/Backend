@@ -24,6 +24,18 @@ export class AdminService {
     private readonly kycService: KycService,
   ) {}
 
+  /**
+   * Revenue over an optional date window: total (successful, non-sweep)
+   * transactions, total volume, and fee revenue. Delegates the aggregation to
+   * the transactions service.
+   */
+  async getRevenue(from?: string, to?: string) {
+    return this.transactionsService.getRevenueSummary(
+      from ? new Date(from) : undefined,
+      to ? new Date(to) : undefined,
+    );
+  }
+
   async getStatsOverview(): Promise<StatsOverviewResponseDto> {
     const users = await this.usersService.getUserStats();
 
