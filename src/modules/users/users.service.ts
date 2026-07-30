@@ -45,6 +45,7 @@ export class UsersService {
       firstName: user.firstName,
       middleName: user.middleName,
       lastName: user.lastName,
+      profileImage: user.profileImage ?? null,
       streetAddress1: user.streetAddress1,
       streetAddress2: user.streetAddress2,
       city: user.city,
@@ -182,14 +183,46 @@ export class UsersService {
   async checkUsername(username: string) {
     const existingUser = await this.users.findOne({
       where: { username },
-      select: { id: true },
+      select: { id: true, profileImage: true },
     });
 
     const available = !existingUser;
 
     return sendResponse(
-      { username, available },
+      {
+        username,
+        available,
+        // When the username is taken, surface the owner's avatar so the send /
+        // add-beneficiary UI can show who they're about to pay.
+        profileImage: existingUser?.profileImage ?? null,
+      },
       available ? 'Username is available' : 'Username is already taken',
+    );
+  }
+
+  /**
+   * Batch-resolve username → { username, profileImage } for a set of usernames,
+   * e.g. to enrich a user's saved beneficiaries list in one query. Unknown
+   * usernames are simply absent from the map.
+   */
+  async findPublicProfilesByUsernames(
+    usernames: string[],
+  ): Promise<Map<string, { username: string; profileImage: string | null }>> {
+    const unique = [...new Set(usernames.filter(Boolean))];
+    if (unique.length === 0) {
+      return new Map();
+    }
+
+    const rows = await this.users.find({
+      where: { username: In(unique) },
+      select: { id: true, username: true, profileImage: true },
+    });
+
+    return new Map(
+      rows.map((u) => [
+        u.username,
+        { username: u.username, profileImage: u.profileImage ?? null },
+      ]),
     );
   }
 

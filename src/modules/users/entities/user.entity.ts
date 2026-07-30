@@ -57,6 +57,9 @@ export class User extends BaseEntity {
   @Column({ name: 'last_name', type: 'varchar', nullable: true })
   lastName?: string | null;
 
+  @Column({ name: 'profile_image', type: 'varchar', nullable: true })
+  profileImage?: string | null;
+
   @Column({ name: 'street_address_1', type: 'varchar', nullable: true })
   streetAddress1?: string | null;
 
