@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiForbiddenResponse,
@@ -12,6 +12,7 @@ import { sendResponse } from '../../common/utils/response.util';
 import { UserRole } from '../users/enums/user-role.enum';
 import { ReconciliationService } from '../wallets/reconciliation.service';
 import { AdminService } from './admin.service';
+import { RevenueQueryDto } from './dto/revenue.query.dto';
 import { StatsOverviewResponseDto } from './dto/stats-overview-response.dto';
 
 @ApiTags('Admin')
@@ -67,6 +68,41 @@ export class AdminController {
   @ApiForbiddenResponse({ description: 'Caller is not an admin.' })
   async getStatsOverview(): Promise<StatsOverviewResponseDto> {
     return this.adminService.getStatsOverview();
+  }
+
+  @Get('revenue')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Revenue & transaction totals over a period (admin)',
+    description:
+      'Aggregates successful, non-sweep transactions over an optional ' +
+      'created_at window (from/to; omit both for all-time). Returns the total ' +
+      'transaction count, total volume, and fee revenue (SUM of fees — today ' +
+      'entirely from withdrawal fees, since transfers and deposits are free).',
+  })
+  @ApiOkResponse({
+    description: 'Revenue summary.',
+    schema: {
+      example: {
+        status: true,
+        message: 'Revenue summary',
+        data: {
+          from: '2026-07-01',
+          to: '2026-07-31',
+          totalTransactions: 342,
+          totalVolume: '48210.500000',
+          feeRevenue: '512.750000',
+        },
+      },
+    },
+  })
+  @ApiForbiddenResponse({ description: 'Caller is not an admin.' })
+  async getRevenue(@Query() query: RevenueQueryDto) {
+    const summary = await this.adminService.getRevenue(query.from, query.to);
+    return sendResponse(
+      { from: query.from ?? null, to: query.to ?? null, ...summary },
+      'Revenue summary',
+    );
   }
 
   @Get('reconciliation')
