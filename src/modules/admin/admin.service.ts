@@ -14,13 +14,14 @@ const VOLUME_WINDOW_DAYS = 7;
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private readonly usersService: UsersService,
     private readonly transactionsService: TransactionsService,
     private readonly walletsService: WalletsService,
     private readonly chainService: ChainService,
     private readonly kycService: KycService,
-    private readonly logger = new Logger(AdminService.name),
   ) {}
 
   async getStatsOverview(): Promise<StatsOverviewResponseDto> {
