@@ -19,8 +19,14 @@ export class ChatMessage extends BaseEntity {
   @Column({ type: 'text' })
   content!: string;
 
-  @Column({ type: 'int', nullable: true })
-  tokens?: number | null;
+  @Column({ name: 'prompt_tokens', type: 'int', nullable: true })
+  promptTokens?: number | null;
+
+  @Column({ name: 'completion_tokens', type: 'int', nullable: true })
+  completionTokens?: number | null;
+
+  @Column({ name: 'total_tokens', type: 'int', nullable: true })
+  totalTokens?: number | null;
 
   @Column({ name: 'latency_ms', type: 'int', nullable: true })
   latencyMs?: number | null;

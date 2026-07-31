@@ -27,6 +27,8 @@ interface ValidatedEnvironment {
   RESEND_FROM_EMAIL: string;
   VOYAGE_API_URL: string;
   VOYAGE_API_KEY: string;
+  GROQ_API_KEY: string;
+  GROQ_MODEL: string;
 }
 dotenv.config();
 
@@ -69,6 +71,9 @@ export const envValidationSchema: Joi.ObjectSchema<ValidatedEnvironment> =
 
     VOYAGE_API_URL: Joi.string().uri(),
     VOYAGE_API_KEY: Joi.string().min(1),
+
+    GROQ_API_KEY: Joi.string().min(1),
+    GROQ_MODEL: Joi.string().min(1),
   });
 
 const validationResult = envValidationSchema.validate(process.env, {
