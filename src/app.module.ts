@@ -37,6 +37,7 @@ import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor';
 import { ResponseCacheInterceptor } from './common/cache/response-cache.interceptor';
 import { THROTTLER_IP, THROTTLER_USER } from './common/constants';
 import { RagModule } from './modules/rag/rag.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { RagModule } from './modules/rag/rag.module';
     UploadsModule,
     AdminModule,
     RagModule,
+    ChatModule,
   ],
   providers: [
     // Authentication runs before role authorization, which runs before rate limiting.
