@@ -52,3 +52,16 @@ export function logChatCall(
 ): void {
   logger.log(JSON.stringify(entry));
 }
+
+const TITLE_MAX_LENGTH = 48;
+
+export function buildConversationTitle(firstMessage: string): string {
+  const cleaned = firstMessage.trim().replace(/\s+/g, ' ');
+  if (cleaned.length === 0) return 'New conversation';
+
+  if (cleaned.length <= TITLE_MAX_LENGTH) return cleaned;
+
+  const truncated = cleaned.slice(0, TITLE_MAX_LENGTH);
+  const lastSpace = truncated.lastIndexOf(' ');
+  return `${lastSpace > 0 ? truncated.slice(0, lastSpace) : truncated}…`;
+}
