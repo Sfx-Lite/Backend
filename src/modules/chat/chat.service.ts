@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { performance } from 'node:perf_hooks';
@@ -6,16 +6,19 @@ import { performance } from 'node:perf_hooks';
 import { ChatConversation } from './entities/chat-conversation.entity';
 import { ChatMessage } from './entities/chat-message.entity';
 import { ChatRole } from './enums/chat-role.enum';
+import { ChatMessageStatus } from './enums/chat-message-status.enum';
 import { RagService } from '../rag/rag.service';
 import {
   CHAT_HISTORY_LIMIT,
   CHAT_RETRIEVAL_TOP_K,
   SYSTEM_PROMPT_BASE,
   buildContextBlock,
+  buildConversationTitle,
   logChatCall,
 } from './chat.constants';
-import { ChatMessageResponseDto } from './dto/chat-message-response.dto';
-import { validatedEnv } from 'src/config/env.validation';
+import { SendMessageResponseDto } from './dto/send-message-response.dto.ts';
+import { ConversationDetailResponseDto } from './dto/conversation-detail-response.dto';
+import { ConversationSummaryDto } from './dto/conversation-summary.dto';
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const DEFAULT_GROQ_MODEL = 'llama-3.3-70b-versatile';
@@ -41,17 +44,23 @@ export class ChatService {
     userId: string,
     message: string,
     conversationId?: string,
-  ): Promise<ChatMessageResponseDto> {
-    const conversation = await this.getOrCreateConversation(
+  ): Promise<SendMessageResponseDto> {
+    const { conversation, isNew } = await this.getOrCreateConversation(
       userId,
       conversationId,
     );
+
+    if (isNew) {
+      conversation.title = buildConversationTitle(message);
+      await this.conversationRepo.save(conversation);
+    }
 
     await this.messageRepo.save(
       this.messageRepo.create({
         conversationId: conversation.id,
         role: ChatRole.USER,
         content: message,
+        status: ChatMessageStatus.SUCCESS,
       }),
     );
 
@@ -62,24 +71,24 @@ export class ChatService {
     );
     const systemPrompt = `${SYSTEM_PROMPT_BASE}\n\nContext:\n${buildContextBlock(retrievedChunks)}`;
 
-    const grokMessages: GroqMessage[] = [
+    const groqMessages: GroqMessage[] = [
       { role: 'system', content: systemPrompt },
       ...history.map((m) => ({
         role:
           m.role === ChatRole.ASSISTANT
             ? ('assistant' as const)
             : ('user' as const),
-        content: m.content,
+        content: m.content ?? '',
       })),
       { role: 'user', content: message },
     ];
 
-    const model = validatedEnv.GROQ_MODEL ?? DEFAULT_GROQ_MODEL;
+    const model = process.env.GROQ_MODEL ?? DEFAULT_GROQ_MODEL;
     const start = performance.now();
 
     try {
       const { reply, promptTokens, completionTokens, totalTokens } =
-        await this.callGroq(grokMessages, model);
+        await this.callGroq(groqMessages, model);
       const latencyMs = Math.round(performance.now() - start);
 
       const saved = await this.messageRepo.save(
@@ -87,6 +96,8 @@ export class ChatService {
           conversationId: conversation.id,
           role: ChatRole.ASSISTANT,
           content: reply,
+          status: ChatMessageStatus.SUCCESS,
+          model,
           promptTokens,
           completionTokens,
           totalTokens,
@@ -106,42 +117,124 @@ export class ChatService {
 
       return {
         conversationId: conversation.id,
-        role: ChatRole.ASSISTANT,
-        content: reply,
-        createdAt: saved.createdAt,
+        message: {
+          id: saved.id,
+          createdAt: saved.createdAt,
+          role: ChatRole.ASSISTANT,
+          content: reply,
+        },
       };
     } catch (error) {
+      const latencyMs = Math.round(performance.now() - start);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      const failedRow = await this.messageRepo.save(
+        this.messageRepo.create({
+          conversationId: conversation.id,
+          role: ChatRole.ASSISTANT,
+          content: null,
+          status: ChatMessageStatus.FAILURE,
+          model,
+          errorMessage,
+          latencyMs,
+        }),
+      );
+
       logChatCall(this.logger, {
         model,
         promptTokens: null,
         completionTokens: null,
         conversationId: conversation.id,
-        messageId: null,
-        timestamp: new Date(),
+        messageId: failedRow.id,
+        timestamp: failedRow.createdAt,
         status: 'failure',
       });
+
       throw error;
     }
+  }
+
+  async getConversation(
+    userId: string,
+    conversationId: string,
+  ): Promise<ConversationDetailResponseDto> {
+    const conversation = await this.conversationRepo.findOne({
+      where: { id: conversationId, userId },
+    });
+    if (!conversation) throw new NotFoundException('Conversation not found');
+
+    const messages = await this.messageRepo.find({
+      where: {
+        conversationId: conversation.id,
+        status: ChatMessageStatus.SUCCESS,
+      },
+      order: { createdAt: 'ASC' },
+    });
+
+    return {
+      id: conversation.id,
+      createdAt: conversation.createdAt,
+      conversationTitle: conversation.title ?? 'New conversation',
+      messages: messages.map((m) => ({
+        id: m.id,
+        createdAt: m.createdAt,
+        role: m.role,
+        content: m.content ?? '',
+      })),
+    };
+  }
+
+  async listConversations(userId: string): Promise<ConversationSummaryDto[]> {
+    const conversations = await this.conversationRepo.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+    });
+
+    const summaries = await Promise.all(
+      conversations.map(async (conversation) => {
+        const lastMessage = await this.messageRepo.findOne({
+          where: {
+            conversationId: conversation.id,
+            status: ChatMessageStatus.SUCCESS,
+          },
+          order: { createdAt: 'DESC' },
+        });
+
+        return {
+          id: conversation.id,
+          createdAt: conversation.createdAt,
+          conversationTitle: conversation.title ?? 'New conversation',
+          lastMessageAt: lastMessage?.createdAt ?? conversation.createdAt,
+        };
+      }),
+    );
+
+    return summaries;
   }
 
   private async getOrCreateConversation(
     userId: string,
     conversationId?: string,
-  ): Promise<ChatConversation> {
+  ): Promise<{ conversation: ChatConversation; isNew: boolean }> {
     if (conversationId) {
       const existing = await this.conversationRepo.findOne({
         where: { id: conversationId, userId },
       });
-      if (existing) return existing;
+      if (existing) return { conversation: existing, isNew: false };
     }
-    return this.conversationRepo.save(this.conversationRepo.create({ userId }));
+
+    const created = await this.conversationRepo.save(
+      this.conversationRepo.create({ userId }),
+    );
+    return { conversation: created, isNew: true };
   }
 
   private async getRecentHistory(
     conversationId: string,
   ): Promise<ChatMessage[]> {
     const messages = await this.messageRepo.find({
-      where: { conversationId },
+      where: { conversationId, status: ChatMessageStatus.SUCCESS },
       order: { createdAt: 'DESC' },
       take: CHAT_HISTORY_LIMIT,
     });
@@ -149,7 +242,7 @@ export class ChatService {
   }
 
   private async callGroq(
-    messages: GroqMessage[], // consider renaming this interface too, cosmetic only
+    messages: GroqMessage[],
     model: string,
   ): Promise<{
     reply: string;

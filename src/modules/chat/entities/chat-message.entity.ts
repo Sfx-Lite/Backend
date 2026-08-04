@@ -1,6 +1,7 @@
 import { Column, Entity, Index } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { ChatRole } from '../enums/chat-role.enum';
+import { ChatMessageStatus } from '../enums/chat-message-status.enum';
 
 /**
  * chat_messages — individual turns within a conversation, in created_at order.
@@ -16,9 +17,6 @@ export class ChatMessage extends BaseEntity {
   @Column({ type: 'enum', enum: ChatRole })
   role!: ChatRole;
 
-  @Column({ type: 'text' })
-  content!: string;
-
   @Column({ name: 'prompt_tokens', type: 'int', nullable: true })
   promptTokens?: number | null;
 
@@ -30,4 +28,20 @@ export class ChatMessage extends BaseEntity {
 
   @Column({ name: 'latency_ms', type: 'int', nullable: true })
   latencyMs?: number | null;
+
+  @Column({ type: 'text', nullable: true })
+  content?: string | null;
+
+  @Column({
+    type: 'enum',
+    enum: ChatMessageStatus,
+    default: ChatMessageStatus.SUCCESS,
+  })
+  status!: ChatMessageStatus;
+
+  @Column({ type: 'varchar', nullable: true })
+  model?: string | null;
+
+  @Column({ name: 'error_message', type: 'text', nullable: true })
+  errorMessage?: string | null;
 }
