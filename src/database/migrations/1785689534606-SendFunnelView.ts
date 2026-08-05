@@ -1,9 +1,8 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class SendFunnelView1785689534606 implements MigrationInterface {
-
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
       CREATE VIEW v_signup_kyc_send_funnel AS
       WITH signups AS (
         SELECT DISTINCT user_id FROM analytics_events WHERE event_name = 'signup_completed'
@@ -28,10 +27,9 @@ export class SendFunnelView1785689534606 implements MigrationInterface {
           100.0 * (SELECT COUNT(*) FROM first_tx) / NULLIF((SELECT COUNT(*) FROM signups), 0), 1
         ) AS signup_to_first_tx_rate_pct;
     `);
-    }
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query('DROP VIEW v_signup_kyc_send_funnel;');
-    }
-
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query('DROP VIEW v_signup_kyc_send_funnel;');
+  }
 }

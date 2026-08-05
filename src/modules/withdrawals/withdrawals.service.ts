@@ -6,7 +6,11 @@ import {
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
-import { addMoney, isPositiveMoney, normalizeMoney } from '../../common/utils/money';
+import {
+  addMoney,
+  isPositiveMoney,
+  normalizeMoney,
+} from '../../common/utils/money';
 import { AuditService } from '../audit/audit.service';
 import { AuditCategory } from '../audit/enums/audit-category.enum';
 import { AuditLevel } from '../audit/enums/audit-level.enum';
@@ -71,7 +75,9 @@ export class WithdrawalsService {
    */
   async withdraw(userId: string, dto: WithdrawDto): Promise<WithdrawalResult> {
     if (!isPositiveMoney(dto.amount)) {
-      throw new BadRequestException('Withdrawal amount must be greater than zero');
+      throw new BadRequestException(
+        'Withdrawal amount must be greater than zero',
+      );
     }
 
     // PIN check (throws on wrong/locked PIN — with attempt lockout).
@@ -80,7 +86,11 @@ export class WithdrawalsService {
     const amount = normalizeMoney(dto.amount);
 
     // Fee from the shared engine (USDC treated as USD → "local" transfer).
-    const feeBreakdown = await this.fees.calculateFee(Number(amount), 'USD', 'USD');
+    const feeBreakdown = await this.fees.calculateFee(
+      Number(amount),
+      'USD',
+      'USD',
+    );
     const fee = normalizeMoney(feeBreakdown.fee.toFixed(6));
     const total = addMoney(amount, fee);
 
@@ -117,7 +127,10 @@ export class WithdrawalsService {
         em,
       );
 
-      return { transactionId: transaction.id, balanceAfter: debit.balanceAfter };
+      return {
+        transactionId: transaction.id,
+        balanceAfter: debit.balanceAfter,
+      };
     });
 
     // Only NOW touch the chain — funds are already reserved.
@@ -221,7 +234,13 @@ export class WithdrawalsService {
       }
 
       if (userId) {
-        await this.ledger.credit(transactionId, userId, refundAmount, ASSET, em);
+        await this.ledger.credit(
+          transactionId,
+          userId,
+          refundAmount,
+          ASSET,
+          em,
+        );
 
         await this.notifications.create(
           {

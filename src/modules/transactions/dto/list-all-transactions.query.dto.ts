@@ -74,7 +74,8 @@ export class ListAllTransactionsQueryDto {
 
   @ApiPropertyOptional({
     example: '2026-07-01',
-    description: 'Only transactions at/after this ISO 8601 date-time (inclusive).',
+    description:
+      'Only transactions at/after this ISO 8601 date-time (inclusive).',
   })
   @IsOptional()
   @IsISO8601()
@@ -82,7 +83,8 @@ export class ListAllTransactionsQueryDto {
 
   @ApiPropertyOptional({
     example: '2026-07-31',
-    description: 'Only transactions at/before this ISO 8601 date-time (inclusive).',
+    description:
+      'Only transactions at/before this ISO 8601 date-time (inclusive).',
   })
   @IsOptional()
   @IsISO8601()

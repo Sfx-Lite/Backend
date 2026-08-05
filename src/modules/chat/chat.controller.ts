@@ -38,9 +38,7 @@ export class ChatController {
   async listConversations(
     @CurrentUser('sub') userId: string,
   ): Promise<ConversationSummaryDto[]> {
-    return this.chatService.listConversations(userId) as Promise<
-      ConversationSummaryDto[]
-    >;
+    return this.chatService.listConversations(userId);
   }
 
   @Get('conversations/:id')

@@ -14,8 +14,6 @@ export class AddProfileImageToUsers1785600000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(
-      `ALTER TABLE "users" DROP COLUMN "profile_image"`,
-    );
+    await queryRunner.query(`ALTER TABLE "users" DROP COLUMN "profile_image"`);
   }
 }

@@ -1,9 +1,8 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class KycReviewSlaViews1785175174303 implements MigrationInterface {
-
-    public async up(queryRunner: QueryRunner): Promise<void> {
-          await queryRunner.query(`
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             CREATE VIEW v_kyc_review_sla AS
             SELECT
             id AS submission_id,
@@ -20,7 +19,7 @@ export class KycReviewSlaViews1785175174303 implements MigrationInterface {
             ORDER BY reviewed_at;
         `);
 
-                await queryRunner.query(`
+    await queryRunner.query(`
         CREATE VIEW v_kyc_review_sla_daily AS
         SELECT
             DATE(reviewed_at) AS day,
@@ -32,11 +31,10 @@ export class KycReviewSlaViews1785175174303 implements MigrationInterface {
         GROUP BY DATE(reviewed_at)
         ORDER BY day;
         `);
-    }
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-         await queryRunner.query(`DROP VIEW v_kyc_review_sla;`);
-         await queryRunner.query(`DROP VIEW v_kyc_review_sla_daily;`);
-    }
-
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP VIEW v_kyc_review_sla;`);
+    await queryRunner.query(`DROP VIEW v_kyc_review_sla_daily;`);
+  }
 }

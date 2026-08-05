@@ -73,7 +73,11 @@ export class AuditController {
     summary: 'Get a single audit-log entry (admin)',
     description: 'Admin-only. Returns the full detail of one audit event.',
   })
-  @ApiParam({ name: 'id', description: 'The audit log’s UUID.', format: 'uuid' })
+  @ApiParam({
+    name: 'id',
+    description: 'The audit log’s UUID.',
+    format: 'uuid',
+  })
   @ApiOkResponse({
     description: 'Audit log retrieved successfully.',
     schema: {

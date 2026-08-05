@@ -273,7 +273,11 @@ export class TransactionsController {
       'ledger legs it posted (debit/credit, running balances) and both ' +
       'parties’ usernames.',
   })
-  @ApiParam({ name: 'id', description: 'The transaction’s UUID.', format: 'uuid' })
+  @ApiParam({
+    name: 'id',
+    description: 'The transaction’s UUID.',
+    format: 'uuid',
+  })
   @ApiOkResponse({
     description: 'Transaction detail with ledger entries.',
     schema: {

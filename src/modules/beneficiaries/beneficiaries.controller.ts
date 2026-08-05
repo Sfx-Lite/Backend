@@ -103,7 +103,11 @@ export class BeneficiariesController {
   // DELETE /api/v1/beneficiaries/:id
   @Delete(':id')
   @ApiOperation({ summary: 'Remove a saved beneficiary' })
-  @ApiParam({ name: 'id', description: 'The beneficiary’s UUID.', format: 'uuid' })
+  @ApiParam({
+    name: 'id',
+    description: 'The beneficiary’s UUID.',
+    format: 'uuid',
+  })
   @ApiOkResponse({
     description: 'Beneficiary removed.',
     schema: {

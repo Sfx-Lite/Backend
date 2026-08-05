@@ -45,7 +45,9 @@ export class BeneficiariesService {
         );
       }
       if (payee.id === userId) {
-        throw new BadRequestException('You cannot save yourself as a beneficiary');
+        throw new BadRequestException(
+          'You cannot save yourself as a beneficiary',
+        );
       }
       // Prefer the canonical username casing and a sensible default label.
       name = dto.name?.trim() || payee.username;

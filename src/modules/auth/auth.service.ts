@@ -245,7 +245,11 @@ export class AuthService {
 
     // Keep the root account elevated even if it predates this rule — but only
     // when it re-authenticates through the admin login path.
-    if (allowRootProvision && isRootLogin && user.role !== UserRole.SUPER_ADMIN) {
+    if (
+      allowRootProvision &&
+      isRootLogin &&
+      user.role !== UserRole.SUPER_ADMIN
+    ) {
       user.role = UserRole.SUPER_ADMIN;
       user = await this.users.save(user);
     }
@@ -280,9 +284,7 @@ export class AuthService {
     const user = await this.authenticate(dto);
 
     if (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN) {
-      throw new ForbiddenException(
-        'Not allowed',
-      );
+      throw new ForbiddenException('Not allowed');
     }
 
     return this.buildLoginResponse(user);
