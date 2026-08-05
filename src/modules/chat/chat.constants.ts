@@ -1,5 +1,12 @@
 import { Logger } from '@nestjs/common';
 
+export interface ChatLogContext {
+  conversationId: string;
+  messageId?: string;
+  userId: string;
+  timestamp: Date;
+}
+
 export const CHAT_HISTORY_LIMIT = 10;
 export const CHAT_RETRIEVAL_TOP_K = 5;
 
@@ -51,6 +58,55 @@ export function logChatCall(
   },
 ): void {
   logger.log(JSON.stringify(entry));
+}
+
+export function logRequestReceived(
+  logger: Logger,
+  context: ChatLogContext & { messageLength: number },
+  conversationId: string,
+): void {
+  logger.log(
+    JSON.stringify({
+      event: 'chat_request_received',
+      ...context,
+      conversationId,
+    }),
+  );
+}
+
+export function logConversationResolved(
+  logger: Logger,
+  context: ChatLogContext & { isNew: boolean },
+): void {
+  logger.log(
+    JSON.stringify({ event: 'chat_conversation_resolved', ...context }),
+  );
+}
+
+export function logUserMessageSaved(
+  logger: Logger,
+  context: ChatLogContext,
+): void {
+  logger.log(JSON.stringify({ event: 'chat_user_message_saved', ...context }));
+}
+
+export function logRagRetrieval(
+  logger: Logger,
+  context: ChatLogContext & { chunkCount: number },
+): void {
+  logger.log(JSON.stringify({ event: 'chat_rag_retrieval', ...context }));
+}
+
+export function logGroqCall(
+  logger: Logger,
+  context: ChatLogContext & {
+    model: string;
+    latencyMs: number;
+    ok: boolean;
+    status?: number;
+  },
+): void {
+  logger.log(JSON.stringify({ event: 'chat_groq_call', ...context }));
 }
 
 const TITLE_MAX_LENGTH = 48;

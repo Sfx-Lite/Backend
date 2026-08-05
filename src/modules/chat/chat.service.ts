@@ -15,6 +15,12 @@ import {
   buildContextBlock,
   buildConversationTitle,
   logChatCall,
+  logRequestReceived,
+  logConversationResolved,
+  logUserMessageSaved,
+  logRagRetrieval,
+  logGroqCall,
+  ChatLogContext,
 } from './chat.constants';
 import { SendMessageResponseDto } from './dto/send-message-response.dto.ts';
 import { ConversationDetailResponseDto } from './dto/conversation-detail-response.dto';
@@ -45,17 +51,33 @@ export class ChatService {
     message: string,
     conversationId?: string,
   ): Promise<SendMessageResponseDto> {
+    const logCtx: ChatLogContext = {
+      userId,
+      conversationId: 'new',
+      timestamp: new Date(),
+    };
+    logRequestReceived(
+      this.logger,
+      { ...logCtx, messageLength: message.length },
+      conversationId ?? 'new',
+    );
     const { conversation, isNew } = await this.getOrCreateConversation(
       userId,
       conversationId,
     );
+
+    logConversationResolved(this.logger, {
+      ...logCtx,
+      conversationId: conversation.id,
+      isNew,
+    });
 
     if (isNew) {
       conversation.title = buildConversationTitle(message);
       await this.conversationRepo.save(conversation);
     }
 
-    await this.messageRepo.save(
+    const userMsg = await this.messageRepo.save(
       this.messageRepo.create({
         conversationId: conversation.id,
         role: ChatRole.USER,
@@ -64,11 +86,24 @@ export class ChatService {
       }),
     );
 
+    logUserMessageSaved(this.logger, {
+      ...logCtx,
+      conversationId: conversation.id,
+      messageId: userMsg.id,
+    });
+
     const history = await this.getRecentHistory(conversation.id);
     const retrievedChunks = await this.ragService.retrieve(
       message,
       CHAT_RETRIEVAL_TOP_K,
     );
+
+    logRagRetrieval(this.logger, {
+      ...logCtx,
+      conversationId: conversation.id,
+      chunkCount: retrievedChunks.length,
+    });
+
     const systemPrompt = `${SYSTEM_PROMPT_BASE}\n\nContext:\n${buildContextBlock(retrievedChunks)}`;
 
     const groqMessages: GroqMessage[] = [
@@ -86,10 +121,21 @@ export class ChatService {
     const model = process.env.GROQ_MODEL ?? DEFAULT_GROQ_MODEL;
     const start = performance.now();
 
+    const groqStart = performance.now();
+
     try {
       const { reply, promptTokens, completionTokens, totalTokens } =
         await this.callGroq(groqMessages, model);
       const latencyMs = Math.round(performance.now() - start);
+
+      const groqLatency = Math.round(performance.now() - groqStart);
+      logGroqCall(this.logger, {
+        ...logCtx,
+        conversationId: conversation.id,
+        model,
+        latencyMs: groqLatency,
+        ok: true,
+      });
 
       const saved = await this.messageRepo.save(
         this.messageRepo.create({
@@ -128,6 +174,16 @@ export class ChatService {
       const latencyMs = Math.round(performance.now() - start);
       const errorMessage =
         error instanceof Error ? error.message : String(error);
+
+      const groqLatency = Math.round(performance.now() - groqStart);
+      logGroqCall(this.logger, {
+        ...logCtx,
+        conversationId: conversation.id,
+        model,
+        latencyMs: groqLatency,
+        ok: false,
+        status: 0,
+      });
 
       const failedRow = await this.messageRepo.save(
         this.messageRepo.create({
