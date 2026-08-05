@@ -36,19 +36,31 @@ import type { KycSubmissionFiles } from './kyc.types';
 
 const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024; // 5MB per file
 
-/** A representative KYC submission row (admin view), for Swagger examples. */
+/** A representative KYC submission row for Swagger examples. */
 const EXAMPLE_SUBMISSION = {
   id: '9b2f1c3d-4e5a-6b7c-8d9e-0f1a2b3c4d5e',
   userId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   docType: 'passport',
-  docUrl: 'https://res.cloudinary.com/sfx/kyc/documents/abc123.jpg',
-  selfieUrl: 'https://res.cloudinary.com/sfx/kyc/selfies/def456.jpg',
+  docUrl:
+    'https://res.cloudinary.com/sfx/image/upload/v1721820000/kyc/documents/abc123.jpg',
+  selfieUrl:
+    'https://res.cloudinary.com/sfx/image/upload/v1721820000/kyc/selfies/def456.jpg',
   status: 'pending',
   reason: null,
   reviewedBy: null,
   reviewedAt: null,
   createdAt: '2026-07-24T10:15:00.000Z',
   updatedAt: '2026-07-24T10:15:00.000Z',
+};
+
+const EXAMPLE_SIGNED_SUBMISSION = {
+  ...EXAMPLE_SUBMISSION,
+  status: 'under_review',
+  docUrl:
+    'https://api.cloudinary.com/v1_1/sfx/image/download?api_key=example&expires_at=1721820600&public_id=kyc%2Fdocuments%2Fabc123&signature=example',
+  selfieUrl:
+    'https://api.cloudinary.com/v1_1/sfx/image/download?api_key=example&expires_at=1721820600&public_id=kyc%2Fselfies%2Fdef456&signature=example',
+  urlsExpireInSeconds: 600,
 };
 
 @ApiTags('kyc')
@@ -62,18 +74,25 @@ export class KycController {
   @ApiOperation({
     summary: 'Submit KYC documents',
     description:
-      'Uploads a document image (passport or national ID) plus a selfie, ' +
-      'stores the resulting Cloudinary references on a new kyc_submissions ' +
-      'row, and leaves it in "pending" status for admin review. Requires a ' +
-      'valid access token.',
+      'Uploads a document image, such as a passport or national ID, plus a ' +
+      'selfie. Creates a new KYC submission in pending status for admin review.',
   })
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
-        docType: { type: 'string', enum: ['passport', 'national_id'] },
-        doc: { type: 'string', format: 'binary' },
-        selfie: { type: 'string', format: 'binary' },
+        docType: {
+          type: 'string',
+          enum: ['passport', 'national_id'],
+        },
+        doc: {
+          type: 'string',
+          format: 'binary',
+        },
+        selfie: {
+          type: 'string',
+          format: 'binary',
+        },
       },
       required: ['docType', 'doc', 'selfie'],
     },
@@ -91,10 +110,20 @@ export class KycController {
   @UseInterceptors(
     FileFieldsInterceptor(
       [
-        { name: 'doc', maxCount: 1 },
-        { name: 'selfie', maxCount: 1 },
+        {
+          name: 'doc',
+          maxCount: 1,
+        },
+        {
+          name: 'selfie',
+          maxCount: 1,
+        },
       ],
-      { limits: { fileSize: MAX_UPLOAD_SIZE_BYTES } },
+      {
+        limits: {
+          fileSize: MAX_UPLOAD_SIZE_BYTES,
+        },
+      },
     ),
   )
   submitSubmission(
@@ -110,10 +139,8 @@ export class KycController {
   @ApiOperation({
     summary: 'Get my KYC status and latest submission progress',
     description:
-      'Returns the caller’s overall kyc_status (unverified / pending / ' +
-      'verified / rejected) plus a summary of their most recent submission ' +
-      '(including the rejection reason, if any). Private document URLs are not ' +
-      'exposed.',
+      'Returns the authenticated user’s overall KYC status and a summary of ' +
+      'their latest submission. Private document and selfie URLs are not exposed.',
   })
   @ApiOkResponse({
     description: 'KYC status retrieved successfully.',
@@ -143,10 +170,10 @@ export class KycController {
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'List KYC submissions for review (admin only)',
+    summary: 'List KYC submissions for review',
     description:
-      'Returns submissions oldest-first for the admin queue. Optionally ' +
-      'filter by status (e.g. status=pending).',
+      'Returns KYC submissions ordered from oldest to newest. Administrators ' +
+      'may optionally filter the queue by submission status.',
   })
   @ApiQuery({
     name: 'status',
@@ -154,8 +181,7 @@ export class KycController {
     enum: KycSubmissionStatus,
     example: KycSubmissionStatus.PENDING,
     description:
-      'Filter the queue by submission status. Omit to return all submissions. ' +
-      'One of: pending, under_review, approved, rejected.',
+      'Optional submission status filter: pending, under_review, approved or rejected.',
   })
   @ApiOkResponse({
     description: 'KYC submissions retrieved successfully.',
@@ -175,25 +201,26 @@ export class KycController {
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'View a single KYC submission (admin only)',
+    summary: 'View a KYC submission with signed image URLs',
     description:
-      'Returns one submission with its document and selfie URLs for ' +
-      'side-by-side review. Opening a pending submission marks it ' +
-      '"under_review".',
+      'Returns one KYC submission with time-limited signed Cloudinary URLs ' +
+      'for the document and selfie images. The URLs expire after 10 minutes. ' +
+      'Opening a pending submission also changes its status to under_review.',
   })
   @ApiParam({
     name: 'id',
     format: 'uuid',
     example: '9b2f1c3d-4e5a-6b7c-8d9e-0f1a2b3c4d5e',
-    description: 'The KYC submission id (UUID).',
+    description: 'The KYC submission UUID.',
   })
   @ApiOkResponse({
-    description: 'KYC submission retrieved successfully.',
+    description:
+      'KYC submission retrieved successfully with time-limited signed URLs.',
     schema: {
       example: {
         status: true,
         message: 'KYC submission retrieved successfully',
-        data: { ...EXAMPLE_SUBMISSION, status: 'under_review' },
+        data: EXAMPLE_SIGNED_SUBMISSION,
       },
     },
   })
@@ -205,19 +232,20 @@ export class KycController {
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Approve or reject a KYC submission (admin only)',
+    summary: 'Approve or reject a KYC submission',
     description:
-      'Only an "under_review" submission can be actioned, so the admin must ' +
-      'open the detail view first. A `reason` is required when rejecting and ' +
-      'must be omitted when approving.',
+      'Approves or rejects a submission currently under review. A reason is ' +
+      'required when rejecting and must not be provided when approving.',
   })
   @ApiParam({
     name: 'id',
     format: 'uuid',
     example: '9b2f1c3d-4e5a-6b7c-8d9e-0f1a2b3c4d5e',
-    description: 'The KYC submission id (UUID).',
+    description: 'The KYC submission UUID.',
   })
-  @ApiBody({ type: ReviewKycSubmissionDto })
+  @ApiBody({
+    type: ReviewKycSubmissionDto,
+  })
   @ApiOkResponse({
     description: 'KYC submission reviewed successfully.',
     schema: {
