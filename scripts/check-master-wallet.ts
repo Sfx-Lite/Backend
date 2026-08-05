@@ -6,6 +6,7 @@ import {
   HDNodeWallet,
   JsonRpcProvider,
   Mnemonic,
+  parseEther,
 } from 'ethers';
 
 dotenv.config();
@@ -24,6 +25,14 @@ const MASTER_PATH = "m/44'/60'/0'/0/0";
 const RPC = process.env.ALCHEMY_AMOY_RPC_URL;
 const MNEMONIC = process.env.MASTER_WALLET_MNEMONIC;
 const USDC = process.env.USDC_TOKEN_ADDRESS;
+
+// Each sweep gas-drops GAS_DROP_POL to a deposit address AND pays gas to send
+// it; withdrawals pay gas too. "Non-zero" is not "funded" — require a real
+// reserve. Single source of truth with the app's runtime gas-health alert
+// (GET /admin/gas): the MIN_POL_FLOOR env var, default 0.2 POL (~100
+// withdrawals / dozens of sweeps of headroom).
+const MIN_POL_FLOOR = process.env.MIN_POL_FLOOR ?? '0.2';
+const MIN_POL = parseEther(MIN_POL_FLOOR);
 
 const ERC20_ABI = [
   'function balanceOf(address) view returns (uint256)',
@@ -76,11 +85,19 @@ async function main(): Promise<void> {
     '  explorer  : https://amoy.polygonscan.com/address/' + wallet.address,
   );
   console.log('────────────────────────────────────────────────────');
-  console.log(
-    polWei > 0n
-      ? '✓ Has gas (POL). Ready to broadcast sweeps/withdrawals.'
-      : '✗ No POL yet — fund it from the Polygon Amoy faucet.',
-  );
+  if (polWei >= MIN_POL) {
+    console.log('✓ Has gas (POL). Ready to broadcast sweeps/withdrawals.');
+  } else if (polWei > 0n) {
+    console.log(
+      `✗ LOW on POL: ${formatEther(polWei)} POL is below the ${formatEther(MIN_POL)} POL floor ` +
+        `(MIN_POL_FLOOR=${MIN_POL_FLOOR}). Sweeps/withdrawals will fail with ` +
+        `INSUFFICIENT_FUNDS — top up from the Polygon Amoy faucet.`,
+    );
+    process.exitCode = 1;
+  } else {
+    console.log('✗ No POL yet — fund it from the Polygon Amoy faucet.');
+    process.exitCode = 1;
+  }
 }
 
 main().catch((err: unknown) => {

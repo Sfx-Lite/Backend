@@ -118,6 +118,20 @@ export const env = {
     withdrawalConfirmations: int(process.env.WITHDRAWAL_CONFIRMATIONS, 3),
     // How often the withdrawal-confirmation job polls (ms).
     withdrawalPollMs: int(process.env.WITHDRAWAL_POLL_MS, 30_000),
+
+    // ── Master-wallet gas health (monitoring) ──────────────────
+    // Conservative gas limit for a single USDC (ERC-20) transfer — the whole
+    // cost of one withdrawal broadcast. Used to price per-withdrawal POL and to
+    // estimate how many withdrawals the master wallet can still fund.
+    withdrawalGasLimit: int(process.env.WITHDRAWAL_GAS_LIMIT, 65_000),
+    // Below this native-POL balance the master wallet is considered LOW: the
+    // gas-health endpoint logs a HIGH audit event and notifies admins so a
+    // drained hot wallet surfaces as a warning, not a wave of failed
+    // sweeps/withdrawals. An absolute reserve (NOT derived from GAS_DROP_POL):
+    // 0.2 POL ≈ 100 withdrawals / dozens of sweeps of headroom. The
+    // check-master-wallet script reads the same MIN_POL_FLOOR so CLI and runtime
+    // agree on one threshold.
+    minPolFloor: process.env.MIN_POL_FLOOR ?? '0.2',
   },
 
   fees: {
