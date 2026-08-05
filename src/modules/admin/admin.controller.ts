@@ -14,6 +14,7 @@ import { ReconciliationService } from '../wallets/reconciliation.service';
 import { AdminService } from './admin.service';
 import { RevenueQueryDto } from './dto/revenue.query.dto';
 import { StatsOverviewResponseDto } from './dto/stats-overview-response.dto';
+import { MasterWalletGasService } from './master-wallet-gas.service';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -22,6 +23,7 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly reconciliation: ReconciliationService,
+    private readonly masterWalletGas: MasterWalletGasService,
   ) {}
 
   @Get('test')
@@ -138,5 +140,43 @@ export class AdminController {
   async getReconciliation() {
     const result = await this.reconciliation.reconcile();
     return sendResponse(result, 'Reconciliation computed');
+  }
+
+  @Get('gas')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Master-wallet gas (POL) health (admin)',
+    description:
+      'Reports the master hot wallet’s native-POL reserve — the gas that pays ' +
+      'for every sweep gas-drop and every withdrawal broadcast. Returns the ' +
+      'current balance, the estimated POL per withdrawal (one USDC transfer at ' +
+      'the live gas price), and how many withdrawals the balance still covers. ' +
+      'When the balance is below MIN_POL_FLOOR it records a HIGH audit event and ' +
+      'notifies every admin, so a draining hot wallet surfaces as a warning ' +
+      'instead of a wave of 503s and failed sweeps. Read-only — never spends.',
+  })
+  @ApiOkResponse({
+    description: 'Master-wallet gas health.',
+    schema: {
+      example: {
+        status: true,
+        message: 'Master wallet gas health',
+        data: {
+          masterAddress: '0xeF7FA7Ef55dfAA003C6991016194a21677271347',
+          polBalance: '0.000355194975768184',
+          perWithdrawalPol: '0.00195',
+          withdrawalsRemaining: 0,
+          floorPol: '0.2',
+          status: 'empty',
+          alerted: true,
+          checkedAt: '2026-08-05T08:07:24.167Z',
+        },
+      },
+    },
+  })
+  @ApiForbiddenResponse({ description: 'Caller is not an admin.' })
+  async getGasHealth() {
+    const result = await this.masterWalletGas.check();
+    return sendResponse(result, 'Master wallet gas health');
   }
 }
