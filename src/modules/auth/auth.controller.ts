@@ -21,6 +21,9 @@ import { RegisterDto } from './dto/register.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SetPinDto } from './dto/set-pin.dto';
 import { VerifyPinDto } from './dto/verify-pin.dto';
+import { ResetPinDto } from './dto/reset-pin.dto';
+import { SetPin2faDto } from './dto/set-pin-2fa.dto';
+import { VerifyPin2faDto } from './dto/verify-pin-2fa.dto';
 
 /** The public user object returned inside every auth session response. */
 const EXAMPLE_AUTH_USER = {
@@ -371,4 +374,57 @@ export class AuthController {
   resetPassword(@Param('token') token: string, @Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(token, dto);
   }
+  @Post('pin/reset')
+@ApiBearerAuth()
+@ApiOperation({
+  summary: 'Reset transaction PIN',
+  description:
+    'Allows an authenticated user to change their transaction PIN by providing their current PIN and a new 4-digit PIN.',
+})
+@ApiBody({ type: ResetPinDto })
+@ApiOkResponse({
+  description: 'Transaction PIN reset successfully.',
+})
+@ApiUnauthorizedResponse({
+  description: 'Missing access token or incorrect current PIN.',
+})
+resetPin(
+  @CurrentUser('sub') userId: string,
+  @Body() dto: ResetPinDto,
+) {
+  return this.authService.resetPin(userId, dto.oldPin, dto.newPin);
 }
+@Post('pin/2fa')
+@ApiBearerAuth()
+@ApiOperation({
+  summary: 'Enable or disable PIN 2FA',
+  description:
+    'Allows an authenticated user to switch PIN-based two-factor authentication on or off.',
+})
+@ApiBody({ type: SetPin2faDto })
+@ApiOkResponse({
+  description: 'PIN 2FA setting updated successfully.',
+})
+SetPin2fa(
+  @CurrentUser('sub') userId: string,
+  @Body() dto: SetPin2faDto,
+) {
+  return this.authService.setPin2fa(userId, dto.enabled);
+}
+@Post('login/pin')
+@Public()
+@ApiOperation({
+  summary: 'Complete login with PIN 2FA',
+})
+@ApiBody({ type: VerifyPin2faDto })
+@ApiOkResponse({
+  description: 'Login completed successfully',
+})
+@ApiUnauthorizedResponse({
+  description: 'Invalid or expired PIN session, or incorrect PIN',
+})
+verifyPin2fa(@Body() dto: VerifyPin2faDto) {
+  return this.authService.verifyPin2fa(dto);
+}
+}
+

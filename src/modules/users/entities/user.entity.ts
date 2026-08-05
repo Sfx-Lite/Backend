@@ -48,6 +48,9 @@ export class User extends BaseEntity {
   @Column({ name: 'pin_locked_until', type: 'timestamptz', nullable: true })
   pinLockedUntil?: Date | null;
 
+  @Column({ name: 'pin_2fa_enabled',type: 'boolean',default: false,})
+pin2faEnabled!: boolean;  
+
   @Column({ name: 'first_name', type: 'varchar', nullable: true })
   firstName?: string | null;
 

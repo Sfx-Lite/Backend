@@ -26,6 +26,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { GoogleProfile } from './interfaces/google-profile.interface';
+import { VerifyPin2faDto } from './dto/verify-pin-2fa.dto';
 
 interface JwtPayload {
   sub: string;
@@ -261,18 +262,31 @@ export class AuthService {
     return user;
   }
 
-  private async buildLoginResponse(user: User) {
-    const tokens = await this.issueTokens(user);
+ private async createPinToken(user: User) {
+  return this.jwt.signAsync(
+    {
+      sub: user.id,
+      type: 'pin-2fa',
+    },
+    {
+      secret: `${env.jwt.accessSecret}:pin-2fa`,
+      expiresIn: '5m',
+    },
+  );
+} 
 
-    return sendResponse(
-      {
-        ...tokens,
-        user: this.toPublicUser(user),
-        isPin: Boolean(user.pinHash),
-      },
-      'Login successful',
-    );
-  }
+ private async buildLoginResponse(user: User) {
+  const tokens = await this.issueTokens(user);
+
+  return sendResponse(
+    {
+      ...tokens,
+      user: this.toPublicUser(user),
+      isPin: Boolean(user.pinHash),
+    },
+    'Login successful',
+  );
+}
 
   /**
    * Public user login. Authenticates a regular user against stored credentials
@@ -286,7 +300,15 @@ export class AuthService {
     if (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN) {
       throw new ForbiddenException('Not allowed');
     }
-
+    if (user.pin2faEnabled) {
+  return sendResponse(
+    {
+      requiresPin2fa: true,
+      pinToken: await this.createPinToken(user),
+    },
+    'PIN verification required',
+  );
+}
     return this.buildLoginResponse(user);
   }
 
@@ -715,4 +737,103 @@ export class AuthService {
       'Password has been reset successfully. You can now log in with your new password.',
     );
   }
+  async resetPin(userId: string, oldPin: string, newPin: string) {
+  // Reuse the existing PIN verification and lockout logic.
+  await this.verifyPin(userId, oldPin);
+
+  const user = await this.users.findOne({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new UnauthorizedException('User not found');
+  }
+
+  if (user.suspendedAt) {
+    throw new ForbiddenException('Account suspended');
+  }
+if (!user.pinHash) {
+  throw new ForbiddenException('Transaction PIN has not been set');
+}
+  // Prevent resetting the PIN to the same value.
+  const samePin = await bcrypt.compare(newPin, user.pinHash);
+
+  if (samePin) {
+    throw new ConflictException(
+      'New PIN must be different from the current PIN',
+    );
+  }
+
+  user.pinHash = await bcrypt.hash(newPin, 12);
+  user.pinFailedAttempts = 0;
+  user.pinLockedUntil = null;
+
+  await this.users.save(user);
+
+  return sendResponse(null, 'Transaction PIN reset successfully');
+}
+async setPin2fa(userId: string, enabled: boolean) {
+  const user = await this.users.findOne({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new UnauthorizedException('User not found');
+  }
+
+  if (user.suspendedAt) {
+    throw new ForbiddenException('Account suspended');
+  }
+
+  if (enabled && !user.pinHash) {
+    throw new ForbiddenException(
+      'Set a transaction PIN before enabling PIN 2FA',
+    );
+  }
+
+  user.pin2faEnabled = enabled;
+
+  await this.users.save(user);
+
+  return sendResponse(
+    { pin2faEnabled: user.pin2faEnabled },
+    `PIN 2FA ${enabled ? 'enabled' : 'disabled'} successfully`,
+  );
+}
+async verifyPin2fa(dto: VerifyPin2faDto) {
+  let payload: { sub: string; type: string };
+
+  try {
+    payload = await this.jwt.verifyAsync<{
+      sub: string;
+      type: string;
+    }>(dto.pinToken, {
+      secret: `${env.jwt.accessSecret}:pin-2fa`,
+    });
+  } catch {
+    throw new UnauthorizedException(
+      'PIN verification session is invalid or has expired',
+    );
+  }
+
+  if (payload.type !== 'pin-2fa' || !payload.sub) {
+    throw new UnauthorizedException('Invalid PIN verification token');
+  }
+
+  const user = await this.users.findOne({
+    where: { id: payload.sub },
+  });
+
+  if (!user) {
+    throw new UnauthorizedException('User not found');
+  }
+
+  if (!user.pin2faEnabled) {
+    throw new ForbiddenException('PIN 2FA is not enabled');
+  }
+
+  await this.verifyPin(user.id, dto.pin);
+
+  return this.buildLoginResponse(user);
+}
 }
