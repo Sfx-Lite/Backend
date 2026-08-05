@@ -1,9 +1,8 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class ChatbotCostViews1785496315777 implements MigrationInterface {
-
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             CREATE VIEW v_chatbot_cost_by_day AS
             SELECT
             DATE(created_at) AS day,
@@ -23,7 +22,7 @@ export class ChatbotCostViews1785496315777 implements MigrationInterface {
             ORDER BY day;
         `);
 
-         await queryRunner.query(`
+    await queryRunner.query(`
             CREATE VIEW v_chatbot_cost_by_user AS
             SELECT
                 c.user_id,
@@ -41,11 +40,10 @@ export class ChatbotCostViews1785496315777 implements MigrationInterface {
             GROUP BY c.user_id
             ORDER BY estimated_cost_usd DESC;
             `);
-    }
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP VIEW v_chatbot_cost_by_day;`);
-        await queryRunner.query('DROP VIEW v_chatbot_cost_by_user;');
-    }
-
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP VIEW v_chatbot_cost_by_day;`);
+    await queryRunner.query('DROP VIEW v_chatbot_cost_by_user;');
+  }
 }

@@ -6,14 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import {
-  FindOptionsWhere,
-  ILike,
-  In,
-  Repository,
-  IsNull,
-  Not,
-} from 'typeorm';
+import { FindOptionsWhere, ILike, In, Repository, IsNull, Not } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
 import { sendResponse } from '../../common/utils/response.util';

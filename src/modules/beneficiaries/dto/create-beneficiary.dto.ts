@@ -12,7 +12,8 @@ export class CreateBeneficiaryDto {
   @ApiProperty({
     enum: BeneficiaryType,
     example: BeneficiaryType.INTERNAL,
-    description: 'internal (another SFx user) or external (an on-chain address).',
+    description:
+      'internal (another SFx user) or external (an on-chain address).',
   })
   @IsEnum(BeneficiaryType)
   type!: BeneficiaryType;

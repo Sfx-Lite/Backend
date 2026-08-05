@@ -1,9 +1,8 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class CohortFirstTxView1785690695846 implements MigrationInterface {
-
-    public async up(queryRunner: QueryRunner): Promise<void> {
-         await queryRunner.query(`
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
       CREATE VIEW v_signup_cohort_first_tx AS
       WITH signups AS (
         SELECT
@@ -42,10 +41,9 @@ export class CohortFirstTxView1785690695846 implements MigrationInterface {
       GROUP BY DATE_TRUNC('week', s.signup_at)
       ORDER BY cohort_week;
     `);
-    }
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-         await queryRunner.query('DROP VIEW v_signup_cohort_first_tx;');
-    }
-
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query('DROP VIEW v_signup_cohort_first_tx;');
+  }
 }

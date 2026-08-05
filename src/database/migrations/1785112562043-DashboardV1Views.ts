@@ -1,9 +1,8 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class DashboardV1Views1785112562043 implements MigrationInterface {
-
-    public async up(queryRunner: QueryRunner): Promise<void> {
-         await queryRunner.query(`
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
     CREATE VIEW v_signup_funnel AS
     SELECT
       DATE(created_at) AS day,
@@ -15,7 +14,7 @@ export class DashboardV1Views1785112562043 implements MigrationInterface {
     ORDER BY day;
   `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
     CREATE VIEW v_kyc_funnel AS
     SELECT
         DATE(created_at) AS day,
@@ -28,7 +27,7 @@ export class DashboardV1Views1785112562043 implements MigrationInterface {
     ORDER BY day;
     `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
     CREATE VIEW v_deposit_funnel AS
     SELECT
         DATE(created_at) AS day,
@@ -41,7 +40,7 @@ export class DashboardV1Views1785112562043 implements MigrationInterface {
     ORDER BY day;
     `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
     CREATE VIEW v_event_counts_by_type AS
     SELECT
         event_name,
@@ -51,13 +50,12 @@ export class DashboardV1Views1785112562043 implements MigrationInterface {
     GROUP BY event_name, actor_type
     ORDER BY event_count DESC;
     `);
-    }
-     
-    public async down(queryRunner: QueryRunner): Promise<void> {
-         await queryRunner.query(`DROP VIEW v_signup_funnel;`);
-         await queryRunner.query(`DROP VIEW v_kyc_funnel;`);
-         await queryRunner.query(`DROP VIEW v_deposit_funnel;`);
-         await queryRunner.query(`DROP VIEW v_event_counts_by_type;`);
-    }
+  }
 
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP VIEW v_signup_funnel;`);
+    await queryRunner.query(`DROP VIEW v_kyc_funnel;`);
+    await queryRunner.query(`DROP VIEW v_deposit_funnel;`);
+    await queryRunner.query(`DROP VIEW v_event_counts_by_type;`);
+  }
 }
