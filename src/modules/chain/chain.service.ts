@@ -116,6 +116,34 @@ export class ChainService {
   }
 
   /**
+   * Current effective gas price (wei per gas). Prefers the EIP-1559 max fee
+   * (Polygon is 1559) and falls back to the legacy gasPrice; 0n only if the
+   * node reports neither.
+   */
+  async getGasPriceWei(): Promise<bigint> {
+    const fee = await this.provider().getFeeData();
+    return fee.maxFeePerGas ?? fee.gasPrice ?? 0n;
+  }
+
+  /**
+   * Estimate the native-POL cost of ONE withdrawal broadcast — a single USDC
+   * (ERC-20) transfer from the master wallet. Cost = gasLimit × current gas
+   * price, both in wei. `gasLimit` is the configured conservative constant
+   * (WITHDRAWAL_GAS_LIMIT) rather than a live estimateGas, so this stays cheap
+   * and never reverts when balances are low. A withdrawal sends NO POL to the
+   * recipient — only USDC moves — so this is purely the gas to broadcast it.
+   */
+  async estimateWithdrawalCostWei(): Promise<{
+    gasLimit: bigint;
+    gasPriceWei: bigint;
+    costWei: bigint;
+  }> {
+    const gasLimit = BigInt(env.chain.withdrawalGasLimit);
+    const gasPriceWei = await this.getGasPriceWei();
+    return { gasLimit, gasPriceWei, costWei: gasLimit * gasPriceWei };
+  }
+
+  /**
    * Send native POL from `signer` to `to` (for gas-dropping a deposit address
    * before its USDC can be swept). Waits 1 confirmation. Returns the tx hash.
    */
