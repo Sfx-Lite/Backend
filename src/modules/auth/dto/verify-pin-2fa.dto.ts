@@ -1,21 +1,10 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsJWT, IsString, Matches } from 'class-validator';
-
-export class VerifyPin2faDto {
-  @ApiProperty({
-    description: 'Temporary token returned after successful password verification',
-  })
-  @IsString()
-  @IsJWT()
-  pinToken!: string;
-
-  @ApiProperty({
-    example: '1234',
-    description: 'The user’s 4-digit transaction PIN',
-  })
-  @IsString()
-  @Matches(/^\d{4}$/, {
-    message: 'PIN must contain exactly 4 digits',
-  })
-  pin!: string;
-}
+/**
+ * @deprecated PIN-based login 2FA was replaced by email-OTP 2FA.
+ * Use {@link VerifyLoginOtpDto} from './verify-login-otp.dto' instead. This
+ * alias is kept only for backward compatibility and can be removed once no
+ * callers reference it.
+ */
+export {
+  VerifyLoginOtpDto,
+  VerifyLoginOtpDto as VerifyPin2faDto,
+} from './verify-login-otp.dto';

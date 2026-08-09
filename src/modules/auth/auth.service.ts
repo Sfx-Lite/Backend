@@ -2,7 +2,10 @@ import {
   Injectable,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -18,6 +21,8 @@ import { CacheService } from '../../common/cache/cache.service';
 import { sendResponse } from '../../common/utils/response.util';
 import { EmailService } from '../email/email.service';
 import { buildPasswordResetEmail } from '../email/templates/password-reset-email.template';
+import { buildLoginOtpEmail } from '../email/templates/login-otp-email.template';
+import { buildLoginNotificationEmail } from '../email/templates/login-notification-email.template';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
 import { WalletsService } from '../wallets/wallets.service';
@@ -26,7 +31,8 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { GoogleProfile } from './interfaces/google-profile.interface';
-import { VerifyPin2faDto } from './dto/verify-pin-2fa.dto';
+import { VerifyLoginOtpDto } from './dto/verify-login-otp.dto';
+import { ResendLoginOtpDto } from './dto/resend-login-otp.dto';
 
 interface JwtPayload {
   sub: string;
@@ -43,6 +49,23 @@ export class AuthService {
   private static readonly GOOGLE_NONCE_TTL_SECONDS = 10 * 60;
 
   private static readonly PASSWORD_RESET_TTL_MINUTES = 60;
+
+  /** How long an emailed login OTP stays valid. */
+  private static readonly LOGIN_OTP_TTL_SECONDS = 10 * 60;
+
+  /** Wrong-code attempts allowed before the OTP is invalidated. */
+  private static readonly LOGIN_OTP_MAX_ATTEMPTS = 5;
+
+  /** Minimum wait between OTP resend requests, to avoid email spam. */
+  private static readonly LOGIN_OTP_RESEND_COOLDOWN_SECONDS = 30;
+
+  private static loginOtpKey(userId: string): string {
+    return `login:otp:${userId}`;
+  }
+
+  private static loginOtpResendKey(userId: string): string {
+    return `login:otp:resend:${userId}`;
+  }
 
   constructor(
     @InjectRepository(User)
@@ -262,31 +285,120 @@ export class AuthService {
     return user;
   }
 
- private async createPinToken(user: User) {
-  return this.jwt.signAsync(
-    {
-      sub: user.id,
-      type: 'pin-2fa',
-    },
-    {
-      secret: `${env.jwt.accessSecret}:pin-2fa`,
-      expiresIn: '5m',
-    },
-  );
-} 
+  private static generateOtpCode(): string {
+    // 6-digit numeric code, zero-padded (000000–999999).
+    return randomBytes(3).readUIntBE(0, 3).toString().padStart(6, '0').slice(-6);
+  }
 
- private async buildLoginResponse(user: User) {
-  const tokens = await this.issueTokens(user);
+  private recipientName(user: User): string {
+    return [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+  }
 
-  return sendResponse(
-    {
-      ...tokens,
-      user: this.toPublicUser(user),
-      isPin: Boolean(user.pinHash),
-    },
-    'Login successful',
-  );
-}
+  /**
+   * Short-lived token that binds a pending login to a specific user. It is
+   * returned alongside the emailed OTP and must be presented (with the code)
+   * to /auth/login/otp to finish signing in.
+   */
+  private async createLoginOtpToken(user: User) {
+    return this.jwt.signAsync(
+      {
+        sub: user.id,
+        type: 'login-otp',
+      },
+      {
+        secret: `${env.jwt.accessSecret}:login-otp`,
+        expiresIn: '10m',
+      },
+    );
+  }
+
+  /**
+   * Generate a one-time code, store only its hash (+ an attempt counter) in the
+   * cache keyed by user, email the code, and return the pending-login token.
+   * Throws if the code cannot be delivered, since the user could not otherwise
+   * complete the login.
+   */
+  private async issueLoginOtp(user: User) {
+    const code = AuthService.generateOtpCode();
+    const codeHash = await bcrypt.hash(code, 10);
+
+    await this.cache.set(
+      AuthService.loginOtpKey(user.id),
+      { hash: codeHash, attempts: 0 },
+      AuthService.LOGIN_OTP_TTL_SECONDS,
+    );
+
+    const template = buildLoginOtpEmail({
+      recipientName: this.recipientName(user),
+      otp: code,
+      expiresInText: `${AuthService.LOGIN_OTP_TTL_SECONDS / 60} minutes`,
+    });
+
+    try {
+      await this.email.send({
+        to: user.email,
+        subject: template.subject,
+        text: template.text,
+        html: template.html,
+      });
+    } catch (err) {
+      this.logger.error(
+        `Login OTP email failed for user ${user.id}: ${(err as Error).message}`,
+      );
+
+      throw new ServiceUnavailableException(
+        'Could not send your verification code. Please try again shortly.',
+      );
+    }
+
+    return this.createLoginOtpToken(user);
+  }
+
+  /**
+   * Fire-and-forget "new sign-in" security notification, sent to the account
+   * that just logged in (regular user or admin). Never blocks or fails the
+   * login — delivery problems are only logged.
+   */
+  private sendLoginNotification(user: User, isAdmin: boolean): void {
+    const template = buildLoginNotificationEmail({
+      recipientName: this.recipientName(user),
+      loginTimeText: new Date().toUTCString(),
+      isAdmin,
+    });
+
+    void this.email
+      .send({
+        to: user.email,
+        subject: template.subject,
+        text: template.text,
+        html: template.html,
+      })
+      .catch((err: unknown) => {
+        this.logger.error(
+          `Login notification email failed for user ${user.id}: ${
+            (err as Error).message
+          }`,
+        );
+      });
+  }
+
+  private async buildLoginResponse(user: User) {
+    const tokens = await this.issueTokens(user);
+
+    const isAdmin =
+      user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN;
+
+    this.sendLoginNotification(user, isAdmin);
+
+    return sendResponse(
+      {
+        ...tokens,
+        user: this.toPublicUser(user),
+        isPin: Boolean(user.pinHash),
+      },
+      'Login successful',
+    );
+  }
 
   /**
    * Public user login. Authenticates a regular user against stored credentials
@@ -300,15 +412,17 @@ export class AuthService {
     if (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN) {
       throw new ForbiddenException('Not allowed');
     }
-    if (user.pin2faEnabled) {
-  return sendResponse(
-    {
-      requiresPin2fa: true,
-      pinToken: await this.createPinToken(user),
-    },
-    'PIN verification required',
-  );
-}
+
+    if (user.twoFactorEnabled) {
+      return sendResponse(
+        {
+          requiresOtp: true,
+          otpToken: await this.issueLoginOtp(user),
+        },
+        'A verification code has been sent to your email',
+      );
+    }
+
     return this.buildLoginResponse(user);
   }
 
@@ -324,6 +438,16 @@ export class AuthService {
     if (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN) {
       throw new ForbiddenException(
         'This account is not authorized for admin access',
+      );
+    }
+
+    if (user.twoFactorEnabled) {
+      return sendResponse(
+        {
+          requiresOtp: true,
+          otpToken: await this.issueLoginOtp(user),
+        },
+        'A verification code has been sent to your email',
       );
     }
 
@@ -772,68 +896,186 @@ if (!user.pinHash) {
 
   return sendResponse(null, 'Transaction PIN reset successfully');
 }
-async setPin2fa(userId: string, enabled: boolean) {
-  const user = await this.users.findOne({
-    where: { id: userId },
-  });
-
-  if (!user) {
-    throw new UnauthorizedException('User not found');
-  }
-
-  if (user.suspendedAt) {
-    throw new ForbiddenException('Account suspended');
-  }
-
-  if (enabled && !user.pinHash) {
-    throw new ForbiddenException(
-      'Set a transaction PIN before enabling PIN 2FA',
-    );
-  }
-
-  user.pin2faEnabled = enabled;
-
-  await this.users.save(user);
-
-  return sendResponse(
-    { pin2faEnabled: user.pin2faEnabled },
-    `PIN 2FA ${enabled ? 'enabled' : 'disabled'} successfully`,
-  );
-}
-async verifyPin2fa(dto: VerifyPin2faDto) {
-  let payload: { sub: string; type: string };
-
-  try {
-    payload = await this.jwt.verifyAsync<{
-      sub: string;
-      type: string;
-    }>(dto.pinToken, {
-      secret: `${env.jwt.accessSecret}:pin-2fa`,
+  /**
+   * Enable or disable email-OTP two-factor authentication for login. Unlike the
+   * previous PIN-based 2FA, this does not require a transaction PIN — the code
+   * is delivered to the account's email at sign-in.
+   */
+  async set2fa(userId: string, enabled: boolean) {
+    const user = await this.users.findOne({
+      where: { id: userId },
     });
-  } catch {
-    throw new UnauthorizedException(
-      'PIN verification session is invalid or has expired',
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (user.suspendedAt) {
+      throw new ForbiddenException('Account suspended');
+    }
+
+    user.twoFactorEnabled = enabled;
+
+    await this.users.save(user);
+
+    return sendResponse(
+      { twoFactorEnabled: user.twoFactorEnabled },
+      `Two-factor authentication ${enabled ? 'enabled' : 'disabled'} successfully`,
     );
   }
 
-  if (payload.type !== 'pin-2fa' || !payload.sub) {
-    throw new UnauthorizedException('Invalid PIN verification token');
+  /**
+   * Complete a login that required 2FA: validate the pending-login token, match
+   * the emailed OTP against its stored hash (enforcing an attempt limit), and
+   * on success consume the code and issue the real session.
+   */
+  async verifyLoginOtp(dto: VerifyLoginOtpDto) {
+    let payload: { sub: string; type: string };
+
+    try {
+      payload = await this.jwt.verifyAsync<{
+        sub: string;
+        type: string;
+      }>(dto.otpToken, {
+        secret: `${env.jwt.accessSecret}:login-otp`,
+      });
+    } catch {
+      throw new UnauthorizedException(
+        'Login verification session is invalid or has expired',
+      );
+    }
+
+    if (payload.type !== 'login-otp' || !payload.sub) {
+      throw new UnauthorizedException('Invalid login verification token');
+    }
+
+    const user = await this.users.findOne({
+      where: { id: payload.sub },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (user.suspendedAt) {
+      throw new ForbiddenException('Account suspended');
+    }
+
+    if (!user.twoFactorEnabled) {
+      throw new ForbiddenException('Two-factor authentication is not enabled');
+    }
+
+    const cacheKey = AuthService.loginOtpKey(user.id);
+
+    const entry = await this.cache.get<{ hash: string; attempts: number }>(
+      cacheKey,
+    );
+
+    if (!entry) {
+      throw new UnauthorizedException(
+        'Your verification code has expired. Please sign in again.',
+      );
+    }
+
+    const matches = await bcrypt.compare(dto.otp, entry.hash);
+
+    if (!matches) {
+      const attempts = (entry.attempts ?? 0) + 1;
+
+      if (attempts >= AuthService.LOGIN_OTP_MAX_ATTEMPTS) {
+        await this.cache.del(cacheKey);
+
+        throw new UnauthorizedException(
+          'Too many incorrect codes. Please sign in again to get a new code.',
+        );
+      }
+
+      await this.cache.set(
+        cacheKey,
+        { hash: entry.hash, attempts },
+        AuthService.LOGIN_OTP_TTL_SECONDS,
+      );
+
+      const remaining = AuthService.LOGIN_OTP_MAX_ATTEMPTS - attempts;
+
+      throw new UnauthorizedException(
+        `Invalid verification code. ${remaining} attempt${
+          remaining === 1 ? '' : 's'
+        } remaining`,
+      );
+    }
+
+    // Single-use: consume the code so it cannot be replayed.
+    await this.cache.del(cacheKey);
+
+    return this.buildLoginResponse(user);
   }
 
-  const user = await this.users.findOne({
-    where: { id: payload.sub },
-  });
+  /**
+   * Re-send a fresh login OTP for a pending 2FA login. Validates the pending
+   * token (so the password is never resubmitted), enforces a short cooldown to
+   * prevent email spam, issues a new code (invalidating the previous one), and
+   * returns a refreshed otpToken.
+   */
+  async resendLoginOtp(dto: ResendLoginOtpDto) {
+    let payload: { sub: string; type: string };
 
-  if (!user) {
-    throw new UnauthorizedException('User not found');
+    try {
+      payload = await this.jwt.verifyAsync<{
+        sub: string;
+        type: string;
+      }>(dto.otpToken, {
+        secret: `${env.jwt.accessSecret}:login-otp`,
+      });
+    } catch {
+      throw new UnauthorizedException(
+        'Login verification session is invalid or has expired',
+      );
+    }
+
+    if (payload.type !== 'login-otp' || !payload.sub) {
+      throw new UnauthorizedException('Invalid login verification token');
+    }
+
+    const user = await this.users.findOne({
+      where: { id: payload.sub },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (user.suspendedAt) {
+      throw new ForbiddenException('Account suspended');
+    }
+
+    if (!user.twoFactorEnabled) {
+      throw new ForbiddenException('Two-factor authentication is not enabled');
+    }
+
+    const cooldownKey = AuthService.loginOtpResendKey(user.id);
+
+    if (await this.cache.get<boolean>(cooldownKey)) {
+      throw new HttpException(
+        `Please wait ${AuthService.LOGIN_OTP_RESEND_COOLDOWN_SECONDS} seconds before requesting another code.`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    await this.cache.set(
+      cooldownKey,
+      true,
+      AuthService.LOGIN_OTP_RESEND_COOLDOWN_SECONDS,
+    );
+
+    const otpToken = await this.issueLoginOtp(user);
+
+    return sendResponse(
+      {
+        requiresOtp: true,
+        otpToken,
+      },
+      'A new verification code has been sent to your email',
+    );
   }
-
-  if (!user.pin2faEnabled) {
-    throw new ForbiddenException('PIN 2FA is not enabled');
-  }
-
-  await this.verifyPin(user.id, dto.pin);
-
-  return this.buildLoginResponse(user);
-}
 }

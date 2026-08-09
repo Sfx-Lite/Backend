@@ -22,8 +22,9 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SetPinDto } from './dto/set-pin.dto';
 import { VerifyPinDto } from './dto/verify-pin.dto';
 import { ResetPinDto } from './dto/reset-pin.dto';
-import { SetPin2faDto } from './dto/set-pin-2fa.dto';
-import { VerifyPin2faDto } from './dto/verify-pin-2fa.dto';
+import { Set2faDto } from './dto/set-2fa.dto';
+import { VerifyLoginOtpDto } from './dto/verify-login-otp.dto';
+import { ResendLoginOtpDto } from './dto/resend-login-otp.dto';
 
 /** The public user object returned inside every auth session response. */
 const EXAMPLE_AUTH_USER = {
@@ -218,20 +219,33 @@ export class AuthController {
   @Public()
   @ApiOperation({
     summary:
-      'User login with email OR username + password — issues an access + refresh token pair',
+      'User login with email OR username + password — issues tokens, or a 2FA challenge',
     description:
       'The login for regular users only. Admin and super_admin accounts are ' +
       'rejected with 403 and must use POST /auth/admin/login — the public login ' +
       'surface can never mint an admin session, nor does it provision the root ' +
-      'admin. The issued token carries the role for client-side routing.',
+      'admin. The issued token carries the role for client-side routing.\n\n' +
+      'TWO POSSIBLE OUTCOMES:\n' +
+      '1. 2FA OFF — returns the access + refresh token pair plus the user ' +
+      '(the example below). The user is logged in.\n' +
+      '2. 2FA ON (`twoFactorEnabled`) — NO tokens are returned. Instead a ' +
+      'one-time code is emailed and the response is ' +
+      '`{ requiresOtp: true, otpToken }`. The client must detect ' +
+      '`data.requiresOtp === true`, route to the OTP screen, and complete login ' +
+      'via POST /auth/login/otp (or re-send via POST /auth/login/otp/resend). ' +
+      'The `otpToken` is a short-lived (10 min) handle for that pending login.',
   })
   @ApiBody({ type: LoginDto })
   @ApiOkResponse({
     description:
-      'Login successful. The `user` object includes the current `kycStatus` ' +
-      '(unverified / pending / verified / rejected) so the client can route ' +
-      'the user to KYC when needed. `isPin` indicates whether a transaction ' +
-      'PIN has been set.',
+      'Either a completed login OR a 2FA challenge.\n\n' +
+      '• 2FA off (shown below): the token pair plus the `user` object, which ' +
+      'includes the current `kycStatus` (unverified / pending / verified / ' +
+      'rejected) so the client can route the user to KYC when needed. `isPin` ' +
+      'indicates whether a transaction PIN has been set.\n\n' +
+      '• 2FA on: `{ status: true, message: "A verification code has been sent ' +
+      'to your email", data: { requiresOtp: true, otpToken: "<jwt>" } }` — no ' +
+      'tokens until the OTP is verified at POST /auth/login/otp.',
     schema: {
       example: {
         status: true,
@@ -262,13 +276,24 @@ export class AuthController {
       'endpoint that authenticates admins. Same credential format as ' +
       '/auth/login, but rejects any account that is not an admin or super_admin ' +
       'with 403. The root admin (ROOT_ADMIN_EMAIL) is provisioned exclusively ' +
-      'here on first use (password must match ROOT_ADMIN_PASSWORD).',
+      'here on first use (password must match ROOT_ADMIN_PASSWORD).\n\n' +
+      'TWO POSSIBLE OUTCOMES (same as /auth/login):\n' +
+      '1. 2FA OFF — returns the token pair plus the admin user (the example ' +
+      'below).\n' +
+      '2. 2FA ON (`twoFactorEnabled`) — NO tokens. A one-time code is emailed ' +
+      'and the response is `{ requiresOtp: true, otpToken }`. The dashboard must ' +
+      'detect `data.requiresOtp === true`, show the OTP screen, and finish login ' +
+      'via POST /auth/login/otp (resend via POST /auth/login/otp/resend).',
   })
   @ApiBody({ type: LoginDto })
   @ApiOkResponse({
     description:
-      'Admin login successful — returns a token pair plus the admin user ' +
-      '(role admin or super_admin).',
+      'Either a completed admin login OR a 2FA challenge.\n\n' +
+      '• 2FA off (shown below): a token pair plus the admin user (role admin or ' +
+      'super_admin).\n\n' +
+      '• 2FA on: `{ status: true, message: "A verification code has been sent ' +
+      'to your email", data: { requiresOtp: true, otpToken: "<jwt>" } }` — no ' +
+      'tokens until the OTP is verified at POST /auth/login/otp.',
     schema: {
       example: {
         status: true,
@@ -394,37 +419,91 @@ resetPin(
 ) {
   return this.authService.resetPin(userId, dto.oldPin, dto.newPin);
 }
-@Post('pin/2fa')
+@Post('2fa')
 @ApiBearerAuth()
 @ApiOperation({
-  summary: 'Enable or disable PIN 2FA',
+  summary: 'Enable or disable email-OTP 2FA',
   description:
-    'Allows an authenticated user to switch PIN-based two-factor authentication on or off.',
+    'Allows an authenticated user to switch email-OTP two-factor authentication ' +
+    'on or off. When enabled, a one-time code is emailed on every login and must ' +
+    'be entered at POST /auth/login/otp to complete sign-in.',
 })
-@ApiBody({ type: SetPin2faDto })
+@ApiBody({ type: Set2faDto })
 @ApiOkResponse({
-  description: 'PIN 2FA setting updated successfully.',
+  description: 'Two-factor authentication setting updated successfully.',
+  schema: {
+    example: {
+      status: true,
+      message: 'Two-factor authentication enabled successfully',
+      data: { twoFactorEnabled: true },
+    },
+  },
 })
-SetPin2fa(
+set2fa(
   @CurrentUser('sub') userId: string,
-  @Body() dto: SetPin2faDto,
+  @Body() dto: Set2faDto,
 ) {
-  return this.authService.setPin2fa(userId, dto.enabled);
+  return this.authService.set2fa(userId, dto.enabled);
 }
-@Post('login/pin')
+@Post('login/otp')
 @Public()
 @ApiOperation({
-  summary: 'Complete login with PIN 2FA',
+  summary: 'Complete login with the emailed OTP (2FA)',
+  description:
+    'Second step of a 2FA login. Submit the otpToken returned by /auth/login ' +
+    '(or /auth/admin/login) together with the 6-digit code emailed to the ' +
+    'account. On success, returns the normal access + refresh token pair.',
 })
-@ApiBody({ type: VerifyPin2faDto })
+@ApiBody({ type: VerifyLoginOtpDto })
 @ApiOkResponse({
-  description: 'Login completed successfully',
+  description: 'Login completed successfully.',
+  schema: {
+    example: {
+      status: true,
+      message: 'Login successful',
+      data: {
+        ...EXAMPLE_TOKENS,
+        user: EXAMPLE_AUTH_USER,
+        isPin: false,
+      },
+    },
+  },
 })
 @ApiUnauthorizedResponse({
-  description: 'Invalid or expired PIN session, or incorrect PIN',
+  description: 'Invalid or expired OTP session, or incorrect code.',
 })
-verifyPin2fa(@Body() dto: VerifyPin2faDto) {
-  return this.authService.verifyPin2fa(dto);
+verifyLoginOtp(@Body() dto: VerifyLoginOtpDto) {
+  return this.authService.verifyLoginOtp(dto);
+}
+@Post('login/otp/resend')
+@Public()
+@ApiOperation({
+  summary: 'Resend the login OTP (2FA)',
+  description:
+    'Re-sends a fresh verification code to the account email for a pending 2FA ' +
+    'login. Submit the otpToken from /auth/login or /auth/admin/login — the ' +
+    'password is not resubmitted. A new otpToken is returned and the previous ' +
+    'code is invalidated. Limited to one request every 30 seconds.',
+})
+@ApiBody({ type: ResendLoginOtpDto })
+@ApiOkResponse({
+  description: 'A new verification code has been sent.',
+  schema: {
+    example: {
+      status: true,
+      message: 'A new verification code has been sent to your email',
+      data: {
+        requiresOtp: true,
+        otpToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.<otp>.<sig>',
+      },
+    },
+  },
+})
+@ApiUnauthorizedResponse({
+  description: 'Invalid or expired OTP session.',
+})
+resendLoginOtp(@Body() dto: ResendLoginOtpDto) {
+  return this.authService.resendLoginOtp(dto);
 }
 }
 
