@@ -48,8 +48,14 @@ export class User extends BaseEntity {
   @Column({ name: 'pin_locked_until', type: 'timestamptz', nullable: true })
   pinLockedUntil?: Date | null;
 
-  @Column({ name: 'pin_2fa_enabled',type: 'boolean',default: false,})
-pin2faEnabled!: boolean;  
+  /**
+   * Login two-factor authentication toggle. When true, a one-time code is
+   * emailed to the account on every login and must be entered to finish signing
+   * in. Kept on the original `pin_2fa_enabled` column so no schema change is
+   * needed — the mechanism is now email OTP rather than the transaction PIN.
+   */
+  @Column({ name: 'pin_2fa_enabled', type: 'boolean', default: false })
+  twoFactorEnabled!: boolean;
 
   @Column({ name: 'first_name', type: 'varchar', nullable: true })
   firstName?: string | null;
