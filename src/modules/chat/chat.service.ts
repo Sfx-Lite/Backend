@@ -27,7 +27,7 @@ import { ConversationDetailResponseDto } from './dto/conversation-detail-respons
 import { ConversationSummaryDto } from './dto/conversation-summary.dto';
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const DEFAULT_GROQ_MODEL = 'llama-3.3-70b-versatile';
+const DEFAULT_GROQ_MODEL = 'groq/compound-mini';
 
 interface GroqMessage {
   role: 'system' | 'user' | 'assistant';
